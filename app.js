@@ -180,11 +180,41 @@ const idFromUrl = url => Number(url.split("/").filter(Boolean).pop());
 const title = s => s.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const pad = n => "#" + String(n).padStart(4, "0");
+
+// Official spellings that can't be rebuilt from PokéAPI's ids ("mr-mime" → "Mr. Mime").
+const NAME_FIX = {
+  "mr-mime": "Mr. Mime", "mime-jr": "Mime Jr.", "mr-rime": "Mr. Rime", "farfetchd": "Farfetch'd", "sirfetchd": "Sirfetch'd",
+  "ho-oh": "Ho-Oh", "porygon-z": "Porygon-Z", "nidoran-f": "Nidoran♀", "nidoran-m": "Nidoran♂", "type-null": "Type: Null",
+  "flabebe": "Flabébé", "jangmo-o": "Jangmo-o", "hakamo-o": "Hakamo-o", "kommo-o": "Kommo-o",
+  "wo-chien": "Wo-Chien", "chien-pao": "Chien-Pao", "ting-lu": "Ting-Lu", "chi-yu": "Chi-Yu"
+};
+let SPECIES_SLUGS = new Set();
+
+// Display name for any Pokémon id: species, regional form, Mega/Gigantamax form, or other form ("giratina-origin").
+function pokeName(slug) {
+  if (!slug) return "";
+  if (NAME_FIX[slug]) return NAME_FIX[slug];
+  if (SPECIES_SLUGS.has(slug)) return title(slug);
+  if (isRegionalForm(slug)) return regionalInfo(slug).label;
+  if (typeof gimmickOf === "function" && gimmickOf(slug)) return gimmickLabel(slug);
+  const parts = slug.split("-");
+  for (let i = parts.length - 1; i > 0; i--) {
+    const base = parts.slice(0, i).join("-");
+    if (NAME_FIX[base] || SPECIES_SLUGS.has(base)) return `${pokeName(base)} (${title(parts.slice(i).join("-"))})`;
+  }
+  return title(slug);
+}
 const english = (list, key = "name") => (list || []).find(e => e.language.name === "en")?.[key];
 const genLabel = g => "Generation " + g.replace("generation-", "").toUpperCase();
 const typeBadge = (t, extra = "") => `<span class="type" style="background:${TYPE_COLOR[t] || "#777"}">${t}${extra}</span>`;
 
+// Skeleton placeholder shown while a page loads (styled in styles.css).
+const loadingBlock = (text = "Loading…") => `<p class="status" role="status">${esc(text)}</p>`;
+
 function setCrumbs(items) {
+  const last = items[items.length - 1]?.label;
+  if (items.length === 1 && last === "Regions") items = [];   // the home page doesn't need a breadcrumb
+  document.title = last && last !== "Loading…" ? `${last} · Poké Explorer` : "Poké Explorer";
   crumbs.innerHTML = items.map((it, i) =>
     (i ? '<span class="sep">/</span>' : "") + (it.href ? `<a href="${it.href}">${esc(it.label)}</a>` : `<span>${esc(it.label)}</span>`)
   ).join("");
@@ -216,9 +246,30 @@ async function renderRegions() {
   const regions = allRegions.filter((r, i) => hasPokemon[i]);
 
   view.innerHTML = `
-    <div id="home-extras"></div>
-    <h1>Choose a region</h1>
-    <p class="lede">Every Pokémon debuted in one of these regions. Pick a region to see the Pokémon that originate there, or search any Pokémon by name or number above.</p>
+    <section class="home-hero">
+      <div class="home-intro">
+        <h1>Look up any Pokémon</h1>
+        <p class="lede">Stats, typing, evolutions, moves, forms and battle gimmicks for all 1,025 Pokémon, plus tools for building teams and tracking your collection.</p>
+        <form class="hero-search" id="hero-search" role="search">
+          <label class="visually-hidden" for="hero-input">Pokémon name or Pokédex number</label>
+          <input id="hero-input" type="search" list="name-suggestions" placeholder="Try “charizard”, “mr. mime” or “448”" autocomplete="off">
+          <button type="submit" class="btn">Search</button>
+        </form>
+        <nav class="quick-links" aria-label="Popular tools">
+          <a href="#team"><strong>Team builder</strong><span>Weaknesses and coverage</span></a>
+          <a href="#damage"><strong>Damage calculator</strong><span>Rolls, % HP and KO odds</span></a>
+          <a href="#tools/stats"><strong>Stat calculator</strong><span>IVs, EVs and natures</span></a>
+          <a href="#tools/typechart"><strong>Type chart</strong><span>Every matchup</span></a>
+          <a href="#tracker/hunts"><strong>Shiny hunts</strong><span>Count encounters</span></a>
+          <a href="#tools/quiz"><strong>Who's That Pokémon?</strong><span>Test yourself</span></a>
+        </nav>
+      </div>
+      <div id="home-extras" class="home-potd"></div>
+    </section>
+    <div class="section-head">
+      <h2>Choose a region</h2>
+      <p class="muted">Every Pokémon debuted in one of these regions.</p>
+    </div>
     <div class="region-grid">
       ${regions.map(r => {
         const gen = r.main_generation ? genLabel(r.main_generation.name) : "Special region";
@@ -231,6 +282,11 @@ async function renderRegions() {
       }).join("")}
     </div>`;
   renderHomeExtras(document.getElementById("home-extras"));
+  document.getElementById("hero-search").addEventListener("submit", e => {
+    e.preventDefault();
+    const q = document.getElementById("hero-input").value.trim().toLowerCase().replace(/^#?0*(?=\d)/, "").replace(/[.':]/g, "").replace(/♀/g, "-f").replace(/♂/g, "-m").replace(/é/g, "e").replace(/\s+/g, "-");
+    if (q) location.hash = `pokemon/${q}`;
+  });
 }
 
 /* ---------- Layer 2: Pokémon in a region ---------- */
@@ -284,7 +340,7 @@ async function renderRegion(name) {
         <a class="mon-card" href="#pokemon/${m.name}" data-key="${m.name} ${m.id}">
           <img src="${SPRITE(m.id)}" alt="" loading="lazy" width="88" height="88">
           <span class="num">${pad(m.id)}</span>
-          <span class="name">${esc(title(m.name))}</span>
+          <span class="name">${esc(pokeName(m.name))}</span>
           ${trackBadges(m.id)}
         </a>`).join("")}
     </div>
@@ -338,7 +394,7 @@ const isRegionalForm = name => REGIONAL_RE.test(name) && !/totem|-cap$|-cap-|gma
 function regionalInfo(name) {
   const m = name.match(REGIONAL_RE);
   if (!m) return null;
-  return { base: m[1], region: m[2], label: `${REGIONAL[m[2]]} ${title(m[1])}${m[3] ? ` (${title(m[3])})` : ""}` };
+  return { base: m[1], region: m[2], label: `${REGIONAL[m[2]]} ${pokeName(m[1])}${m[3] ? ` (${title(m[3])})` : ""}` };
 }
 
 async function regionalForms(region) {
@@ -539,7 +595,35 @@ async function renderMoves(byVg, vg, box) {
   }).join("") || '<p class="muted">No move data for this game.</p>';
 }
 
-async function renderPokemon(query) {
+const DETAIL_TABS = [["overview", "Overview"], ["evolution", "Evolution & forms"], ["moves", "Moves"],
+  ["training", "Training & breeding"], ["games", "Games & shiny"]];
+
+function detailTabs(active) {
+  return `<div class="detail-tabs" role="tablist" aria-label="Pokémon details">${DETAIL_TABS.map(([id, label]) =>
+    `<button type="button" role="tab" id="dtab-${id}" aria-selected="${id === active}" class="${id === active ? "active" : ""}" data-dtab="${id}">${label}</button>`).join("")}</div>`;
+}
+
+// Switch tabs without reloading; the address updates so each tab can be bookmarked or shared (#pokemon/eevee/moves).
+function wireDetailTabs(monName, onOpen) {
+  const buttons = [...view.querySelectorAll(".detail-tabs button")];
+  const select = btn => {
+    buttons.forEach(b => { const on = b === btn; b.classList.toggle("active", on); b.setAttribute("aria-selected", on); });
+    view.querySelectorAll(".dtab-panel").forEach(p => (p.hidden = p.dataset.dtab !== btn.dataset.dtab));
+    const tab = btn.dataset.dtab;
+    try { history.replaceState(null, "", `#pokemon/${monName}${tab === "overview" ? "" : "/" + tab}`); } catch {}
+    onOpen(tab);
+  };
+  buttons.forEach((b, i) => {
+    b.addEventListener("click", () => select(b));
+    b.addEventListener("keydown", e => {
+      const next = e.key === "ArrowRight" ? buttons[(i + 1) % buttons.length] : e.key === "ArrowLeft" ? buttons[(i - 1 + buttons.length) % buttons.length] : null;
+      if (next) { e.preventDefault(); next.focus(); select(next); }
+    });
+  });
+}
+
+async function renderPokemon(query, tab) {
+  const activeTab = DETAIL_TABS.some(([id]) => id === tab) ? tab : "overview";
   setCrumbs([{ label: "Regions", href: "#" }, { label: "Loading…" }]);
   view.innerHTML = `<p class="status">Loading ${esc(query)}…</p>`;
 
@@ -563,7 +647,7 @@ async function renderPokemon(query) {
   ]);
 
   const speciesName = english(species.names) || title(species.name);
-  const displayName = !isForm ? speciesName : regionalInfo(mon.name)?.label || title(mon.name);
+  const displayName = !isForm ? speciesName : pokeName(mon.name);
   const genus = english(species.genera, "genus") || "";
   const entries = species.flavor_text_entries.filter(f => f.language.name === "en");
   const entry = entries[entries.length - 1];
@@ -631,11 +715,13 @@ async function renderPokemon(query) {
           <div><dt>Base EXP</dt><dd>${mon.base_experience ?? "—"}</dd></div>
           <div><dt>Capture rate</dt><dd>${species.capture_rate} / 255</dd></div>
         </dl>
-        ${entry ? `<blockquote class="entry">${esc(entry.flavor_text.replace(/[\f\n\r­]+/g, " "))}<cite>Pokédex entry · Pokémon ${esc(title(entry.version.name))}</cite></blockquote>` : ""}
+        ${entry ? `<blockquote class="entry">${esc(entry.flavor_text.replace(/[\f\n\r­]+/g, " "))}<cite>Pokédex entry · Pokémon ${esc(GAME_LABEL[entry.version.name] || title(entry.version.name))}</cite></blockquote>` : ""}
       </div>
     </section>
 
-    <div class="sections">
+    ${detailTabs(activeTab)}
+    <div class="dtab-panel" data-dtab="overview" role="tabpanel"${activeTab === "overview" ? "" : " hidden"}>
+      <div class="sections">
       <section class="panel">
         <h2>Base stats</h2>
         <div class="stats">
@@ -667,7 +753,10 @@ async function renderPokemon(query) {
         <div class="types">${matchups.resist.map(m => typeBadge(m.t, `<small>×${m.x}</small>`)).join("") || '<span class="muted">None</span>'}</div>
         ${matchups.immune.length ? `<h3>Immune to</h3><div class="types">${matchups.immune.map(t => typeBadge(t, "<small>×0</small>")).join("")}</div>` : ""}
       </section>
-
+      </div>
+    </div>
+    <div class="dtab-panel" data-dtab="evolution" role="tabpanel"${activeTab === "evolution" ? "" : " hidden"}>
+      <div class="sections">
       <section class="panel wide">
         <h2>Evolution chain</h2>
         ${stages.length > 1 ? `<div class="evo">
@@ -677,7 +766,7 @@ async function renderPokemon(query) {
               ${stage.map(m => `
                 <a class="evo-mon${m.id === species.id ? " current" : ""}" href="#pokemon/${m.name}">
                   <img src="${SPRITE(m.id)}" alt="" loading="lazy">
-                  <strong>${esc(title(m.name))}</strong>
+                  <strong>${esc(pokeName(m.name))}</strong>
                   ${m.how ? `<span class="how">${esc(m.how)}</span>` : i ? "" : '<span class="how">Base form</span>'}
                 </a>`).join("")}
             </div>`).join("")}
@@ -694,25 +783,37 @@ async function renderPokemon(query) {
           <div class="sprites">
             ${otherForms.filter(Boolean).map(f => {
               const src = f.sprites.other?.["official-artwork"]?.front_default || f.sprites.other?.home?.front_default || f.sprites.front_default;
-              const label = f.is_default ? speciesName : regionalInfo(f.name)?.label || title(f.name);
+              const label = f.is_default ? speciesName : pokeName(f.name);
               return src ? `<a class="form-link" href="#pokemon/${f.name}"><figure><img class="art" src="${src}" alt="${esc(label)}" loading="lazy"><figcaption>${esc(label)}</figcaption></figure></a>` : "";
             }).join("")}
           </div>` : ""}
       </section>
 
       <section class="panel wide">
-        <h2>Games</h2>
-        ${games.size ? `<div class="games">${[...games].map(g => `<span class="chip">${esc(title(g))}</span>`).join("")}</div>` : '<p class="muted">No game data available yet.</p>'}
-        ${Object.keys(encounterByGame).length ? `
-          <h3>Where to find it in the wild</h3>
-          <div class="locs">
-            ${Object.entries(encounterByGame).map(([game, places]) => `
-              <details><summary>${esc(title(game))} <span class="muted">(${places.size} location${places.size > 1 ? "s" : ""})</span></summary>
-                <ul>${[...places].map(p => `<li>${esc(p)}</li>`).join("")}</ul>
-              </details>`).join("")}
-          </div>` : '<p class="muted">No wild encounter locations listed; it may be obtained by evolution, trade, gift or event.</p>'}
+        <div class="panel-head">
+          <h2>Battle gimmicks</h2>
+          <a class="text-link" href="#gimmicks/${species.name}">See gimmicks for ${esc(speciesName)} →</a>
+        </div>
+        <p class="muted">Mega Evolution, Primal Reversion, Z-Moves, Dynamax / Gigantamax and Terastallization: which ones ${esc(speciesName)} can use in each game, how its stats and moves change, and what you need to unlock them.</p>
+      </section>
+      </div>
+    </div>
+    <div class="dtab-panel" data-dtab="moves" role="tabpanel"${activeTab === "moves" ? "" : " hidden"}>
+      <div class="sections">
+      <section class="panel wide">
+        <div class="panel-head">
+          <h2>Moves</h2>
+          ${vgs.length ? `<label class="vg-pick"><span>Game</span>
+            <select id="vg-select">${vgs.map(v => `<option value="${v}">${esc(VG_LABEL[v] || title(v))}</option>`).join("")}</select>
+          </label>` : ""}
+        </div>
+        <div id="moves-body">${vgs.length ? "" : '<p class="muted">No move data available.</p>'}</div>
       </section>
 
+      </div>
+    </div>
+    <div class="dtab-panel" data-dtab="training" role="tabpanel"${activeTab === "training" ? "" : " hidden"}>
+      <div class="sections">
       <section class="panel wide">
         <div class="panel-head">
           <h2>Natures</h2>
@@ -723,13 +824,21 @@ async function renderPokemon(query) {
       </section>
 
       ${trainingPanel(species, mon, displayName)}
-
+      </div>
+    </div>
+    <div class="dtab-panel" data-dtab="games" role="tabpanel"${activeTab === "games" ? "" : " hidden"}>
+      <div class="sections">
       <section class="panel wide">
-        <div class="panel-head">
-          <h2>Battle gimmicks</h2>
-          <a class="text-link" href="#gimmicks/${species.name}">See gimmicks for ${esc(speciesName)} →</a>
-        </div>
-        <p class="muted">Mega Evolution, Primal Reversion, Z-Moves, Dynamax / Gigantamax and Terastallization: which ones ${esc(speciesName)} can use in each game, how its stats and moves change, and what you need to unlock them.</p>
+        <h2>Games</h2>
+        ${games.size ? `<div class="games">${[...games].map(g => `<span class="chip">${esc(GAME_LABEL[g] || title(g))}</span>`).join("")}</div>` : '<p class="muted">No game data available yet.</p>'}
+        ${Object.keys(encounterByGame).length ? `
+          <h3>Where to find it in the wild</h3>
+          <div class="locs">
+            ${Object.entries(encounterByGame).map(([game, places]) => `
+              <details><summary>${esc(GAME_LABEL[game] || title(game))} <span class="muted">(${places.size} location${places.size > 1 ? "s" : ""})</span></summary>
+                <ul>${[...places].map(p => `<li>${esc(p)}</li>`).join("")}</ul>
+              </details>`).join("")}
+          </div>` : '<p class="muted">No wild encounter locations listed; it may be obtained by evolution, trade, gift or event.</p>'}
       </section>
 
       <section class="panel wide">
@@ -748,24 +857,22 @@ async function renderPokemon(query) {
           <p class="muted note">Full-odds rates for a random encounter. Methods like the Masuda Method, chaining, mass outbreaks and Sandwich powers raise them further, and some legendary or gift Pokémon are shiny-locked.</p>`
         : '<p class="muted">No shiny data for the games this Pokémon appears in.</p>'}
       </section>
+      </div>
+    </div>
+`;
 
-      <section class="panel wide">
-        <div class="panel-head">
-          <h2>Moves</h2>
-          ${vgs.length ? `<label class="vg-pick"><span>Game</span>
-            <select id="vg-select">${vgs.map(v => `<option value="${v}">${esc(VG_LABEL[v] || title(v))}</option>`).join("")}</select>
-          </label>` : ""}
-        </div>
-        <div id="moves-body">${vgs.length ? "" : '<p class="muted">No move data available.</p>'}</div>
-      </section>
-    </div>`;
-
-  if (vgs.length) {
+  // Moves load only when their tab is first opened (they need one request per move).
+  let movesLoaded = false;
+  const loadMoves = () => {
+    if (movesLoaded || !vgs.length) return;
+    movesLoaded = true;
     const select = document.getElementById("vg-select");
     const box = document.getElementById("moves-body");
     select.addEventListener("change", () => renderMoves(byVg, select.value, box));
     renderMoves(byVg, select.value, box);
-  }
+  };
+  wireDetailTabs(mon.name, tab => { if (tab === "moves") loadMoves(); });
+  if (activeTab === "moves") loadMoves();
 
   wireTrackerToggles();
 
@@ -893,27 +1000,79 @@ async function renderNatures(query) {
 
 /* ---------- Router & search ---------- */
 
-function setTab(page) {
+// Four main sections, each with its own sub-menu. Routes are unchanged so old links and bookmarks still work.
+const SECTIONS = [
+  { id: "pokedex", items: [["regions", "Regions", "#"], ["forms", "Regional forms", "#forms"]] },
+  { id: "battle", items: [["gimmicks", "Battle gimmicks", "#gimmicks"], ["team", "Team builder", "#team"],
+    ["damage", "Damage calculator", "#damage"], ["natures", "Natures", "#natures"]] },
+  { id: "tools", items: [["compare", "Compare", "#tools/compare"], ["typechart", "Type chart", "#tools/typechart"],
+    ["search", "Advanced search", "#tools/search"], ["stats", "Stat calculator", "#tools/stats"],
+    ["abilities", "Abilities", "#tools/abilities"], ["moves", "Moves", "#tools/moves"], ["items", "Items", "#tools/items"],
+    ["breeding", "Breeding", "#tools/breeding"], ["quiz", "Who's That Pokémon?", "#tools/quiz"]] },
+  { id: "tracker", items: [["games", "My games", "#tracker/games", "games-count"], ["pokedex", "Pokédex", "#tracker/pokedex", "dex-count"],
+    ["forms", "Forms", "#tracker/forms", "forms-count"], ["hunts", "Shiny hunts", "#tracker/hunts", "hunts-count"]] }
+];
+
+function navFor(page, param) {
+  if (["gimmicks", "team", "damage", "natures"].includes(page)) return ["battle", page];
+  if (page === "tools") return ["tools", param || "compare"];
+  if (page === "tracker") return ["tracker", param || "games"];
+  if (page === "forms") return ["pokedex", "forms"];
+  if (page === "pokemon" || page === "region") return ["pokedex", page === "region" ? "regions" : null];
+  return ["pokedex", "regions"];
+}
+
+function setTab(page, param) {
+  const [section, sub] = navFor(page, param);
   document.querySelectorAll(".tabs a").forEach(a => {
-    const tab = ["natures", "forms", "gimmicks", "tracker", "team", "tools"].includes(page) ? page : "explore";
-    const on = a.dataset.tab === tab;
+    const on = a.dataset.tab === section;
     a.classList.toggle("active", on);
     if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
+  const items = SECTIONS.find(s => s.id === section).items;
+  document.getElementById("subnav").innerHTML = `<div class="subnav-inner">${items.map(([id, label, href, countId]) =>
+    `<a href="${href}" class="${id === sub ? "active" : ""}"${id === sub ? ' aria-current="page"' : ""}>${esc(label)}${countId ? ` <span class="muted" id="${countId}"></span>` : ""}</a>`).join("")}</div>`;
+  const active = document.querySelector(".subnav a.active");
+  if (active) active.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
+/* ---------- Light / dark / system theme ---------- */
+
+const THEME_KEY = "pokeExplorerTheme";
+const THEME_ICON = {
+  system: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg>',
+  light: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3 3l1.1 1.1M11.9 11.9 13 13M3 13l1.1-1.1M11.9 4.1 13 3"/></g></svg>',
+  dark: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 10.2A6 6 0 0 1 5.8 2.5a6 6 0 1 0 7.7 7.7z" fill="currentColor"/></svg>'
+};
+const THEME_LABEL = { system: "Auto", light: "Light", dark: "Dark" };
+function currentTheme() { try { return localStorage.getItem(THEME_KEY) || "system"; } catch { return "system"; } }
+function applyTheme(t) {
+  if (t === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  const btn = document.getElementById("theme-toggle");
+  btn.innerHTML = `${THEME_ICON[t]}<span>${THEME_LABEL[t]}</span>`;
+  btn.title = `Theme: ${t === "system" ? "matches your device" : t}. Click to change.`;
+}
+document.getElementById("theme-toggle").addEventListener("click", () => {
+  const next = { system: "light", light: "dark", dark: "system" }[currentTheme()];
+  try { if (next === "system") localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, next); } catch {}
+  applyTheme(next);
+});
+applyTheme(currentTheme());
+
 async function route() {
+  await namesReady;
   const [page, param, ...rest] = decodeURIComponent(location.hash.slice(1)).split("/");
   window.scrollTo(0, 0);
-  setTab(page);
+  setTab(page, param);
   try {
     if (page === "region" && param) await renderRegion(param);
-    else if (page === "pokemon" && param) await renderPokemon(param);
+    else if (page === "pokemon" && param) await renderPokemon(param, rest[0]);
     else if (page === "natures") await renderNatures(param);
     else if (page === "forms") await renderRegionalForms(param);
     else if (page === "gimmicks") await renderGimmicks(param);
     else if (page === "tracker") await renderTracker(param);
-    else if (page === "team") await renderTeam();
+    else if (page === "team") await renderTeam(param);
+    else if (page === "damage") await renderDamage();
     else if (page === "tools") await renderTools(param, rest);
     else await renderRegions();
     view.focus({ preventScroll: true });
@@ -926,14 +1085,16 @@ async function route() {
 document.getElementById("global-search").addEventListener("submit", e => {
   e.preventDefault();
   const input = document.getElementById("search-input");
-  const q = input.value.trim().toLowerCase().replace(/^#?0*(?=\d)/, "").replace(/[.']/g, "").replace(/\s+/g, "-");
+  const q = input.value.trim().toLowerCase().replace(/^#?0*(?=\d)/, "").replace(/[.':]/g, "").replace(/♀/g, "-f").replace(/♂/g, "-m").replace(/é/g, "e").replace(/\s+/g, "-");
   if (q) location.hash = `pokemon/${q}`;
   input.value = "";
 });
 
-// Fill search suggestions with every species name (one lightweight request).
-get("/pokemon-species?limit=2000").then(d => {
-  document.getElementById("name-suggestions").innerHTML = d.results.map(s => `<option value="${s.name}">`).join("");
+// Every species id (one lightweight request): powers proper display names and the search suggestions.
+const namesReady = get("/pokemon-species?limit=2000").then(d => {
+  SPECIES_SLUGS = new Set(d.results.map(s => s.name));
+  document.getElementById("name-suggestions").innerHTML =
+    d.results.map(s => `<option value="${s.name}">${esc(pokeName(s.name))}</option>`).join("");
 }).catch(() => {});
 
 window.addEventListener("hashchange", route);
