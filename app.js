@@ -151,7 +151,13 @@ async function renderRegions() {
   setCrumbs([{ label: "Regions" }]);
   view.innerHTML = `<p class="status">Loading regions…</p>`;
   const list = await get("/region?limit=50");
-  const regions = await Promise.all(list.results.map(r => get(r.url)));
+  const allRegions = await Promise.all(list.results.map(r => get(r.url)));
+  // Hide regions with no Pokémon of their own (e.g. Orre). Regions with a generation always have some;
+  // the others are checked through their regional Pokédex.
+  const hasPokemon = await Promise.all(allRegions.map(r =>
+    r.main_generation ? true : speciesForRegion(r).then(list => list.length > 0).catch(() => false)
+  ));
+  const regions = allRegions.filter((r, i) => hasPokemon[i]);
 
   view.innerHTML = `
     <h1>Choose a region</h1>
@@ -190,6 +196,12 @@ async function renderRegion(name) {
   view.innerHTML = `<p class="status">Loading Pokémon from ${esc(title(name))}…</p>`;
   const region = await get(`/region/${name}`);
   const mons = (await speciesForRegion(region)).sort((a, b) => a.id - b.id);
+  if (!mons.length) {
+    view.innerHTML = `<h1>${esc(title(name))}</h1>
+      <p class="lede">No Pokémon originate from ${esc(title(name))}, so there's nothing to list here.</p>
+      <p><a class="text-link" href="#">Back to regions</a></p>`;
+    return;
+  }
 
   view.innerHTML = `
     <h1>${esc(title(name))}</h1>
