@@ -190,6 +190,31 @@ const NAME_FIX = {
 };
 let SPECIES_SLUGS = new Set();
 
+// Moves and items whose official spelling can't be rebuilt from the id ("u-turn" → "U-turn", "kings-rock" → "King's Rock").
+const MOVE_FIX = {
+  "u-turn": "U-turn", "v-create": "V-create", "x-scissor": "X-Scissor", "double-edge": "Double-Edge", "will-o-wisp": "Will-O-Wisp",
+  "self-destruct": "Self-Destruct", "soft-boiled": "Soft-Boiled", "lock-on": "Lock-On", "mud-slap": "Mud-Slap", "baby-doll-eyes": "Baby-Doll Eyes",
+  "freeze-dry": "Freeze-Dry", "multi-attack": "Multi-Attack", "trick-or-treat": "Trick-or-Treat", "forests-curse": "Forest's Curse",
+  "kings-shield": "King's Shield", "lands-wrath": "Land's Wrath", "natures-madness": "Nature's Madness", "power-up-punch": "Power-Up Punch",
+  "wake-up-slap": "Wake-Up Slap", "all-out-pummeling": "All-Out Pummeling", "topsy-turvy": "Topsy-Turvy", "double-hit": "Double Hit",
+  "10-000-000-volt-thunderbolt": "10,000,000 Volt Thunderbolt", "light-that-burns-the-sky": "Light That Burns the Sky",
+  "lets-snuggle-forever": "Let's Snuggle Forever", "soul-stealing-7-star-strike": "Soul-Stealing 7-Star Strike",
+  "never-ending-nightmare": "Never-Ending Nightmare", "savage-spin-out": "Savage Spin-Out", "x-attack": "X Attack"
+};
+const ITEM_FIX = {
+  "kings-rock": "King's Rock", "never-melt-ice": "Never-Melt Ice", "x-attack": "X Attack", "x-defense": "X Defense", "x-speed": "X Speed",
+  "x-accuracy": "X Accuracy", "x-sp-atk": "X Sp. Atk", "x-sp-def": "X Sp. Def", "pp-up": "PP Up", "pp-max": "PP Max", "hp-up": "HP Up",
+  "rm-1": "RM 1", "exp-share": "Exp. Share", "lucky-egg": "Lucky Egg", "bike-voucher": "Bike Voucher", "s-s-ticket": "S.S. Ticket",
+  "oaks-parcel": "Oak's Parcel", "oaks-letter": "Oak's Letter", "devon-goods": "Devon Goods", "z-ring": "Z-Ring", "z-power-ring": "Z-Power Ring"
+};
+const moveName = slug => MOVE_FIX[slug] || title(slug);
+function itemName(slug) {
+  if (!slug) return "";
+  if (ITEM_FIX[slug]) return ITEM_FIX[slug];
+  if (/^(tm|hm|tr)\d+$/.test(slug)) return slug.toUpperCase();
+  return title(slug).replace(/\bPoke\b/g, "Poké").replace(/^Pokeblock/, "Pokéblock");
+}
+
 // Display name for any Pokémon id: species, regional form, Mega/Gigantamax form, or other form ("giratina-origin").
 function pokeName(slug) {
   if (!slug) return "";
@@ -582,7 +607,7 @@ async function renderMoves(byVg, vg, box) {
           <tbody>
             ${rows.map(({ level, name, d }) => `<tr>
               ${isLevel ? `<td class="num">${level === 0 ? "Evo" : level}</td>` : ""}
-              <td><strong>${esc(d ? english(d.names) || title(name) : title(name))}</strong></td>
+              <td><strong>${esc(d ? english(d.names) || moveName(name) : moveName(name))}</strong></td>
               <td>${d?.type ? typeBadge(d.type.name) : "—"}</td>
               <td>${d?.damage_class ? title(d.damage_class.name) : "—"}</td>
               <td class="num">${d?.power ?? "—"}</td>
