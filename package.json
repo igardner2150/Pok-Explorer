@@ -1,0 +1,13 @@
+{
+  "name": "poke-explorer",
+  "version": "1.0.0",
+  "description": "Poké Explorer: look up any Pokémon with data from PokéAPI.",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "start": "python3 -m http.server 8000"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
