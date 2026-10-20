@@ -241,12 +241,12 @@ const GIMMICK_FORM_RE = /-(mega(-[xyz])?|primal|gmax)$|^necrozma-ultra$/;
 
 function gimmickLabel(name) {
   let m;
-  if ((m = name.match(/^(.+?)-mega(?:-([xyz]))?$/))) return `Mega ${title(m[1])}${m[2] ? " " + m[2].toUpperCase() : ""}`;
-  if ((m = name.match(/^(.+)-primal$/))) return `Primal ${title(m[1])}`;
+  if ((m = name.match(/^(.+?)-mega(?:-([xyz]))?$/))) return `Mega ${pokeName(m[1])}${m[2] ? " " + m[2].toUpperCase() : ""}`;
+  if ((m = name.match(/^(.+)-primal$/))) return `Primal ${pokeName(m[1])}`;
   if ((m = name.match(/^(.+)-gmax$/))) {
     const [base, ...rest] = m[1].split("-");
     const known = ["urshifu", "toxtricity"].includes(base);
-    return `Gigantamax ${known ? title(base) + ` (${title(rest.join("-"))})` : title(m[1])}`;
+    return `Gigantamax ${known ? pokeName(base) + ` (${title(rest.join("-"))})` : pokeName(m[1])}`;
   }
   if (name === "necrozma-ultra") return "Ultra Necrozma";
   return title(name);
@@ -428,7 +428,7 @@ async function renderGimmickOverview() {
       <div class="table-wrap"><table class="data-table">
         <thead><tr><th>Pokémon</th><th>Z-Crystal</th><th>Uses</th><th>Exclusive Z-Move</th></tr></thead>
         <tbody>${Object.entries(Z_EXCLUSIVE).flatMap(([mon, list]) => list.map(([crystal, move, z]) =>
-          `<tr><td><a class="text-link" href="#gimmicks/${mon}">${esc(regionalInfo(mon)?.label || title(mon))}</a></td><td>${esc(crystal)}</td><td>${esc(move)}</td><td><strong>${esc(z)}</strong></td></tr>`)).join("")}</tbody>
+          `<tr><td><a class="text-link" href="#gimmicks/${mon}">${esc(pokeName(mon))}</a></td><td>${esc(crystal)}</td><td>${esc(move)}</td><td><strong>${esc(z)}</strong></td></tr>`)).join("")}</tbody>
       </table></div>`,
     ultra: `<h3>Ultra Burst form</h3>${grid(ofType("ultra"))}`,
     dynamax: `
