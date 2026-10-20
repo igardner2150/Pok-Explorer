@@ -44,7 +44,7 @@ Sprites and artwork come from PokéAPI's sprite repository. Responses are cached
 | **b) Pokémon from the selected region** | `#region/kanto` | Every Pokémon that debuted there, with sprite and Pokédex number, a filter box and a *Regional forms* sub-tab |
 | **c) Details of the selected Pokémon** | `#pokemon/charizard` | Tabs for **Overview** (stats, abilities, type matchups), **Evolution & forms**, **Moves** (per game, with levels), **Training & breeding** (natures, EV yield, egg groups) and **Games & shiny** (games, wild locations, shiny odds) |
 
-The search bar jumps straight to Layer 3 from anywhere, breadcrumbs lead back up, and every page has its own link.
+The search bar jumps straight to Layer 3 from anywhere, **previous / next** buttons (or the ← → keys) step through the Pokédex, breadcrumbs lead back up, and every page has its own link.
 
 ## Features
 
@@ -59,7 +59,18 @@ The site has four sections, each with its own sub-menu:
 - **Tools:** Compare, Type chart, Advanced search, Stat calculator (with a guide to IVs, EVs and natures), Abilities, Moves, Items, Breeding, and Who's That Pokémon?
 - **My tracker:** games owned, caught and shiny Pokémon (list or PC-box view), regional and Gigantamax forms, and shiny hunt counters with odds. Saved in the browser, with export and import.
 
-Plus: official spellings everywhere (Mr. Mime, Farfetch'd, Nidoran♀), a light/dark/auto theme, loading placeholders, a phone-friendly layout, per-page browser-tab titles, and link previews when the site is shared.
+Everyday conveniences:
+
+- **Search** that suggests Pokémon, forms, moves, abilities and items as you type, with sprites and types, arrow-key navigation, and typo tolerance ("charizrd" finds Charizard). Pokémon boxes in the tools get the same suggestions.
+- **Favorites and recently viewed** on the home page, and a star button on every Pokémon.
+- **Region filters:** type, caught / not caught / shiny / favorites, and sorting by number, name or base stat total.
+- **Type pages:** every type badge links to that type's matchups and Pokémon.
+- **Share buttons** on Pokémon pages, comparisons and damage calculations (the calculator's settings travel in the link).
+- **Metric or imperial** height and weight (US English browsers start in feet and pounds).
+- **First-time tips** in the tracker and team builder, and each main tab remembers the last page you used in it.
+- **Readable everywhere:** every type badge and text color meets the WCAG AA contrast ratio (4.5:1), checked by a test.
+- **Recovers from problems:** a Try again button when PokéAPI can't be reached, older saved data used when offline, and "Did you mean…" suggestions for misspelled Pokémon.
+- Official spellings (Mr. Mime, Farfetch'd, Nidoran♀), a light/dark/auto theme, loading placeholders, a phone-friendly layout, per-page tab titles, and link previews.
 
 ## Running it locally
 
@@ -88,12 +99,13 @@ sudo cp ~/Pok-Explorer/*.html ~/Pok-Explorer/*.css ~/Pok-Explorer/*.js ~/Pok-Exp
 npm test
 ```
 
-42 automated tests (Node's built-in test runner, no dependencies) check:
+59 automated tests (Node's built-in test runner, no dependencies) check:
 
 - **Formulas:** the stat and damage formulas against Bulbapedia's worked examples, KO odds, and abilities, Tera and critical-hit rules.
 - **Names and search:** official spellings, form names, item and move names, and search matching.
 - **Game data:** type matchups, role suggestions, shiny odds and Mega Evolution availability.
-- **Saved data:** tracker saves (including old saves and corrupted data) and shiny hunt math.
+- **Saved data:** tracker saves (including old saves and corrupted data), favorites, recently viewed, hints, and shiny hunt math.
+- **Conveniences:** search ranking and typo tolerance, unit conversion, share-link encoding, previous/next, and color contrast for every type badge.
 - **Project files:** every script is valid, loads together, and is included in `index.html`.
 
 GitHub Actions runs the tests on Node 20 and 22 for every push. The badge at the top shows the result.
@@ -110,6 +122,7 @@ GitHub Actions runs the tests on Node 20 and 22 for every push. The badge at the
 | `extras.js` | Team builder, Compare, Type chart, Advanced search, quiz, Pokémon of the day |
 | `training.js` | Stat calculator, Abilities, Moves, Breeding |
 | `battle.js` | Damage calculator, Items |
+| `ux.js` | Search dropdown, favorites and recently viewed, previous/next, units, share links, tips, type pages |
 | `og-image.png` | Image for link previews |
 | `tests/` | Automated tests |
 | `.github/workflows/tests.yml` | Runs the tests on GitHub |
