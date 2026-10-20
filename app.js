@@ -195,7 +195,10 @@ async function renderRegion(name) {
   setCrumbs([{ label: "Regions", href: "#" }, { label: title(name) }]);
   view.innerHTML = `<p class="status">Loading Pokémon from ${esc(title(name))}…</p>`;
   const region = await get(`/region/${name}`);
-  const mons = (await speciesForRegion(region)).sort((a, b) => a.id - b.id);
+  const [mons, forms] = await Promise.all([
+    speciesForRegion(region).then(l => l.sort((a, b) => a.id - b.id)),
+    REGIONAL[name] ? regionalForms(name) : []
+  ]);
   if (!mons.length) {
     view.innerHTML = `<h1>${esc(title(name))}</h1>
       <p class="lede">No Pokémon originate from ${esc(title(name))}, so there's nothing to list here.</p>
@@ -208,10 +211,15 @@ async function renderRegion(name) {
     <p class="lede">${region.main_generation
       ? `Pokémon that debuted in ${genLabel(region.main_generation.name)}.`
       : `Pokémon listed in the ${esc(title(region.pokedexes[0]?.name || name))} Pokédex.`} Select one for its full profile.</p>
+    ${forms.length ? `
+      <div class="sub-tabs" role="tablist" aria-label="${esc(title(name))} lists">
+        <button type="button" role="tab" class="sub-tab active" aria-selected="true" data-grid="mon-grid">Native Pokémon (${mons.length})</button>
+        <button type="button" role="tab" class="sub-tab" aria-selected="false" data-grid="form-grid">Regional forms (${forms.length})</button>
+      </div>` : ""}
     <div class="list-tools">
       <label class="visually-hidden" for="filter">Filter this region's Pokémon</label>
       <input id="filter" type="search" placeholder="Filter by name or number…" autocomplete="off">
-      <span class="count" id="count">${mons.length} Pokémon</span>
+      <span class="count" id="count"></span>
     </div>
     <div class="mon-grid" id="mon-grid">
       ${mons.map(m => `
@@ -220,15 +228,102 @@ async function renderRegion(name) {
           <span class="num">${pad(m.id)}</span>
           <span class="name">${esc(title(m.name))}</span>
         </a>`).join("")}
-    </div>`;
+    </div>
+    ${forms.length ? `<div class="mon-grid" id="form-grid" hidden>${forms.map(formCard).join("")}</div>` : ""}`;
 
   const filter = document.getElementById("filter");
-  const cards = [...view.querySelectorAll(".mon-card")];
-  filter.addEventListener("input", () => {
+  let activeGrid = document.getElementById("mon-grid");
+  const applyFilter = () => {
     const q = filter.value.trim().toLowerCase().replace(/^#?0*/, "");
+    const cards = [...activeGrid.querySelectorAll(".mon-card")];
     let shown = 0;
     cards.forEach(c => { const hit = !q || c.dataset.key.includes(q); c.hidden = !hit; if (hit) shown++; });
-    document.getElementById("count").textContent = `${shown} of ${cards.length} Pokémon`;
+    const noun = activeGrid.id === "form-grid" ? "regional forms" : "Pokémon";
+    document.getElementById("count").textContent = q ? `${shown} of ${cards.length} ${noun}` : `${cards.length} ${noun}`;
+  };
+  filter.addEventListener("input", applyFilter);
+  view.querySelectorAll(".sub-tab").forEach(btn => btn.addEventListener("click", () => {
+    view.querySelectorAll(".sub-tab").forEach(b => { const on = b === btn; b.classList.toggle("active", on); b.setAttribute("aria-selected", on); });
+    view.querySelectorAll(".mon-grid").forEach(g => (g.hidden = g.id !== btn.dataset.grid));
+    activeGrid = document.getElementById(btn.dataset.grid);
+    applyFilter();
+  }));
+  applyFilter();
+}
+
+/* ---------- Shared loaders ---------- */
+
+// Accepts a species name ("vulpix"), a Pokédex number, or a specific form ("vulpix-alola", "charizard-mega-x").
+async function loadSpeciesAndMon(query) {
+  try {
+    const species = await get(`/pokemon-species/${query}`);
+    const v = species.varieties.find(x => x.is_default) || species.varieties[0];
+    return { species, mon: await get(v.pokemon.url) };
+  } catch (err) {
+    if (err.message !== "not-found") throw err;
+    const mon = await get(`/pokemon/${query}`);
+    return { species: await get(mon.species.url), mon };
+  }
+}
+
+const getAllPokemon = () => get("/pokemon?limit=2000");
+
+/* ---------- Regional forms ---------- */
+
+const REGIONAL = { alola: "Alolan", galar: "Galarian", hisui: "Hisuian", paldea: "Paldean" };
+const REGIONAL_RE = /^(.+?)-(alola|galar|hisui|paldea)(?:-(.+))?$/;
+
+// Regional variants only: skip totem Pokémon, Pikachu's cap costumes and Gigantamax forms.
+const isRegionalForm = name => REGIONAL_RE.test(name) && !/totem|-cap$|-cap-|gmax/.test(name);
+
+function regionalInfo(name) {
+  const m = name.match(REGIONAL_RE);
+  if (!m) return null;
+  return { base: m[1], region: m[2], label: `${REGIONAL[m[2]]} ${title(m[1])}${m[3] ? ` (${title(m[3])})` : ""}` };
+}
+
+async function regionalForms(region) {
+  const all = await getAllPokemon();
+  return all.results.filter(p => isRegionalForm(p.name))
+    .map(p => ({ name: p.name, id: idFromUrl(p.url), ...regionalInfo(p.name) }))
+    .filter(f => !region || f.region === region);
+}
+
+const formCard = f => `
+  <a class="mon-card" href="#pokemon/${f.name}" data-key="${f.name} ${f.label.toLowerCase()}">
+    <img src="${SPRITE(f.id)}" alt="" loading="lazy" width="88" height="88">
+    <span class="num">${esc(REGIONAL[f.region] || "")} form</span>
+    <span class="name">${esc(f.label)}</span>
+  </a>`;
+
+async function renderRegionalForms() {
+  setCrumbs([{ label: "Regional forms" }]);
+  view.innerHTML = `<p class="status">Loading regional forms…</p>`;
+  const forms = await regionalForms();
+  const regions = Object.keys(REGIONAL);
+  view.innerHTML = `
+    <h1>Regional forms</h1>
+    <p class="lede">Some Pokémon adapted to a new region and changed their typing, stats, abilities and look. ${forms.length} regional forms across ${regions.length} regions.</p>
+    <div class="list-tools">
+      <label class="visually-hidden" for="form-filter">Filter regional forms</label>
+      <input id="form-filter" type="search" placeholder="Filter by name…" autocomplete="off">
+    </div>
+    ${regions.map(r => {
+      const list = forms.filter(f => f.region === r);
+      return list.length ? `
+        <section class="form-group">
+          <h2>${REGIONAL[r]} forms <span class="muted">(${list.length})</span> <a class="text-link" href="#region/${r}">${title(r)} region →</a></h2>
+          <div class="mon-grid">${list.map(formCard).join("")}</div>
+        </section>` : "";
+    }).join("")}`;
+  const filter = document.getElementById("form-filter");
+  filter.addEventListener("input", () => {
+    const q = filter.value.trim().toLowerCase();
+    view.querySelectorAll(".form-group").forEach(g => {
+      let shown = 0;
+      g.querySelectorAll(".mon-card").forEach(c => { const hit = !q || c.dataset.key.includes(q); c.hidden = !hit; if (hit) shown++; });
+      g.hidden = !shown;
+    });
   });
 }
 
@@ -368,13 +463,10 @@ async function renderPokemon(query) {
   setCrumbs([{ label: "Regions", href: "#" }, { label: "Loading…" }]);
   view.innerHTML = `<p class="status">Loading ${esc(query)}…</p>`;
 
-  // Species holds the Pokédex data; its default variety holds stats, types and sprites.
-  const species = await get(`/pokemon-species/${query}`);
-  const defaultVariety = species.varieties.find(v => v.is_default) || species.varieties[0];
-  const [mon, evo] = await Promise.all([
-    get(defaultVariety.pokemon.url),
-    species.evolution_chain ? get(species.evolution_chain.url) : null
-  ]);
+  // Species holds the Pokédex data; the chosen variety (default or a form) holds stats, types and sprites.
+  const { species, mon } = await loadSpeciesAndMon(query);
+  const evo = species.evolution_chain ? await get(species.evolution_chain.url) : null;
+  const isForm = !species.varieties.find(v => v.is_default && v.pokemon.name === mon.name);
 
   const types = mon.types.map(t => t.type.name);
   const [matchups, abilities, encounters, otherForms, natures] = await Promise.all([
@@ -386,15 +478,16 @@ async function renderPokemon(query) {
       return { name: english(ab.names) || title(ab.name), hidden: a.is_hidden, text };
     })),
     get(`/pokemon/${mon.id}/encounters`).catch(() => []),
-    Promise.all(species.varieties.filter(v => !v.is_default).slice(0, 10).map(v => get(v.pokemon.url).catch(() => null))),
+    Promise.all(species.varieties.filter(v => v.pokemon.name !== mon.name).slice(0, 16).map(v => get(v.pokemon.url).catch(() => null))),
     getNatures().catch(() => null)
   ]);
 
-  const displayName = english(species.names) || title(species.name);
+  const speciesName = english(species.names) || title(species.name);
+  const displayName = !isForm ? speciesName : regionalInfo(mon.name)?.label || title(mon.name);
   const genus = english(species.genera, "genus") || "";
   const entries = species.flavor_text_entries.filter(f => f.language.name === "en");
   const entry = entries[entries.length - 1];
-  const originRegion = GEN_REGION[species.generation.name];
+  const originRegion = regionalInfo(mon.name)?.region || GEN_REGION[species.generation.name];
 
   setCrumbs([
     { label: "Regions", href: "#" },
@@ -514,11 +607,12 @@ async function renderPokemon(query) {
           ${spriteList.map(([src, label, isArt]) => `<figure><img class="${isArt ? "art" : ""}" src="${src}" alt="${esc(displayName)} ${esc(label)}" loading="lazy"><figcaption>${label}</figcaption></figure>`).join("")}
         </div>
         ${otherForms.filter(Boolean).length ? `
-          <h3>Other forms</h3>
+          <h3>Other forms <span class="muted">(select one for its full profile)</span></h3>
           <div class="sprites">
             ${otherForms.filter(Boolean).map(f => {
               const src = f.sprites.other?.["official-artwork"]?.front_default || f.sprites.front_default;
-              return src ? `<figure><img class="art" src="${src}" alt="${esc(title(f.name))}" loading="lazy"><figcaption>${esc(title(f.name))}</figcaption></figure>` : "";
+              const label = f.is_default ? speciesName : regionalInfo(f.name)?.label || title(f.name);
+              return src ? `<a class="form-link" href="#pokemon/${f.name}"><figure><img class="art" src="${src}" alt="${esc(label)}" loading="lazy"><figcaption>${esc(label)}</figcaption></figure></a>` : "";
             }).join("")}
           </div>` : ""}
       </section>
@@ -543,6 +637,14 @@ async function renderPokemon(query) {
         </div>
         <p class="muted">${esc(displayName)} can have any of the 25 natures. Based on its base stats, it suits a <strong>${esc(role.label.toLowerCase())}</strong>.</p>
         ${naturePicks.length ? `<div class="nature-cards">${naturePicks.map((n, i) => natureCard(n, stats, i)).join("")}</div>` : ""}
+      </section>
+
+      <section class="panel wide">
+        <div class="panel-head">
+          <h2>Battle gimmicks</h2>
+          <a class="text-link" href="#gimmicks/${species.name}">See gimmicks for ${esc(speciesName)} →</a>
+        </div>
+        <p class="muted">Mega Evolution, Primal Reversion, Z-Moves, Dynamax / Gigantamax and Terastallization: which ones ${esc(speciesName)} can use in each game, how its stats and moves change, and what you need to unlock them.</p>
       </section>
 
       <section class="panel wide">
@@ -706,7 +808,8 @@ async function renderNatures(query) {
 
 function setTab(page) {
   document.querySelectorAll(".tabs a").forEach(a => {
-    const on = a.dataset.tab === (page === "natures" ? "natures" : "explore");
+    const tab = ["natures", "forms", "gimmicks"].includes(page) ? page : "explore";
+    const on = a.dataset.tab === tab;
     a.classList.toggle("active", on);
     if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
@@ -720,6 +823,8 @@ async function route() {
     if (page === "region" && param) await renderRegion(param);
     else if (page === "pokemon" && param) await renderPokemon(param);
     else if (page === "natures") await renderNatures(param);
+    else if (page === "forms") await renderRegionalForms();
+    else if (page === "gimmicks") await renderGimmicks(param);
     else await renderRegions();
     view.focus({ preventScroll: true });
   } catch (err) {
@@ -742,4 +847,5 @@ get("/pokemon-species?limit=2000").then(d => {
 }).catch(() => {});
 
 window.addEventListener("hashchange", route);
-route();
+// Wait for every script (app.js, gimmicks.js) before the first render.
+window.addEventListener("DOMContentLoaded", route);
