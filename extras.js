@@ -63,6 +63,7 @@ async function renderTeam(shared) {
         ${filledNames.length ? `<button type="button" class="btn ghost" id="team-share">Share this team</button>` : ""}
       </div>
     </div>
+    ${sharedList ? "" : hintBox("team")}
     <div class="share-box" id="share-box" hidden>
       <label for="share-link">Link to this team</label>
       <div class="share-row"><input id="share-link" type="text" readonly><button type="button" class="btn" id="share-copy">Copy</button></div>
@@ -265,6 +266,7 @@ async function renderCompare(body, a = "charizard", b = "blastoise") {
   };
 
   out.innerHTML = `
+    <div class="result-actions">${shareButton("compare-share", "Share comparison")}</div>
     <div class="compare-grid">
       ${[[L, abL], [R, abR]].map(([x, ab]) => `
         <div class="panel compare-side">
@@ -303,6 +305,8 @@ async function renderCompare(body, a = "charizard", b = "blastoise") {
           : `<strong>${esc(L.stats.speed > R.stats.speed ? L.label : R.label)}</strong> is faster (base ${Math.max(L.stats.speed, R.stats.speed)} vs ${Math.min(L.stats.speed, R.stats.speed)}).`}</li>
       </ul>
     </section>`;
+  document.getElementById("compare-share").addEventListener("click", () =>
+    shareLink(pageUrl(`tools/compare/${L.mon.name}/${R.mon.name}`), `${L.label} vs ${R.label} · Poké Explorer`));
 }
 
 /* Interactive type chart */
@@ -318,7 +322,7 @@ async function renderTypeChart(body) {
     </div>
     <div id="dual-out"></div>
     <div class="table-wrap"><table class="type-chart">
-      <thead><tr><th class="corner">ATK ↓ / DEF →</th>${ALL_TYPES.map(t => `<th class="col-head" title="${title(t)}"><span class="tc-type" style="background:${TYPE_COLOR[t]}">${t.slice(0, 3)}</span></th>`).join("")}</tr></thead>
+      <thead><tr><th class="corner">ATK ↓ / DEF →</th>${ALL_TYPES.map(t => `<th class="col-head" title="${title(t)}"><span class="tc-type" style="${typeStyle(t)}">${t.slice(0, 3)}</span></th>`).join("")}</tr></thead>
       <tbody>${ALL_TYPES.map(atk => `<tr><th>${typeBadge(atk)}</th>${ALL_TYPES.map(def => {
         const m = effectiveness(td, atk, [def]);
         return `<td class="${multClass(m)}" title="${title(atk)} → ${title(def)}: ×${multText(m) || 1}">${multText(m)}</td>`;
