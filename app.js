@@ -42,8 +42,8 @@ const GEN_REGION = {
 const ALL_TYPES = ["normal","fire","water","electric","grass","ice","fighting","poison","ground","flying","psychic","bug","rock","ghost","dragon","dark","steel","fairy"];
 
 const TYPE_COLOR = {
-  normal:"#9a9a6f", fire:"#e5622f", water:"#4f84e8", electric:"#e0b416", grass:"#5ba83a", ice:"#5fbcbc",
-  fighting:"#b8322a", poison:"#9a3f9a", ground:"#c9a24c", flying:"#8f7be6", psychic:"#e8497b", bug:"#93a51c",
+  normal:"#9a9a6f", fire:"#e5622f", water:"#6394f2", electric:"#e0b416", grass:"#5ba83a", ice:"#5fbcbc",
+  fighting:"#b8322a", poison:"#9a3f9a", ground:"#c9a24c", flying:"#8f7be6", psychic:"#f0628f", bug:"#93a51c",
   rock:"#a8903a", ghost:"#6a5694", dragon:"#6234e8", dark:"#6b5546", steel:"#9a9ab5", fairy:"#d97fa0"
 };
 
@@ -144,10 +144,7 @@ async function diskGet(url) {
   return new Promise(resolve => {
     try {
       const req = db.transaction("responses").objectStore("responses").get(url);
-      req.onsuccess = () => {
-        const hit = req.result;
-        resolve(hit && Date.now() - hit.t < DISK_TTL ? hit.data : null);
-      };
+      req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => resolve(null);
     } catch { resolve(null); }
   });
@@ -164,12 +161,18 @@ async function get(url) {
   if (cache.has(url)) return cache.get(url);
   const promise = (async () => {
     const saved = await diskGet(url);
-    if (saved) return saved;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(res.status === 404 ? "not-found" : `PokéAPI returned ${res.status}`);
-    const data = await res.json();
-    diskPut(url, data);
-    return data;
+    if (saved && Date.now() - saved.t < DISK_TTL) return saved.data;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(res.status === 404 ? "not-found" : `PokéAPI returned ${res.status}`);
+      const data = await res.json();
+      diskPut(url, data);
+      return data;
+    } catch (err) {
+      // PokéAPI unreachable: an older saved copy is better than an error page.
+      if (saved && err.message !== "not-found") return saved.data;
+      throw err;
+    }
   })();
   cache.set(url, promise);
   promise.catch(() => cache.delete(url));
@@ -231,7 +234,14 @@ function pokeName(slug) {
 }
 const english = (list, key = "name") => (list || []).find(e => e.language.name === "en")?.[key];
 const genLabel = g => "Generation " + g.replace("generation-", "").toUpperCase();
-const typeBadge = (t, extra = "") => `<span class="type" style="background:${TYPE_COLOR[t] || "#777"}">${t}${extra}</span>`;
+// Text color for each type badge, chosen so every badge reads at 4.5:1 contrast or better (WCAG AA).
+const DARK_TYPES = new Set(["fighting", "poison", "ghost", "dragon", "dark"]);
+const typeText = t => (DARK_TYPES.has(t) ? "#ffffff" : "#1a2232");
+const typeStyle = t => `background:${TYPE_COLOR[t] || "#777"};color:${typeText(t)}`;
+// Type badges link to that type's page; pass link = false inside other links or buttons.
+const typeBadge = (t, extra = "", link = true) => link && TYPE_COLOR[t]
+  ? `<a class="type" href="#type/${t}" style="${typeStyle(t)}" title="${title(t)} type">${t}${extra}</a>`
+  : `<span class="type" style="${typeStyle(t)}">${t}${extra}</span>`;
 
 // Skeleton placeholder shown while a page loads (styled in styles.css).
 const loadingBlock = (text = "Loading…") => `<p class="status" role="status">${esc(text)}</p>`;
@@ -247,13 +257,25 @@ function setCrumbs(items) {
 
 function showError(err, what) {
   const msg = err.message === "not-found"
-    ? `No Pokémon or region called “${esc(what)}” was found. Check the spelling (use hyphens, e.g. mr-mime) or try a Pokédex number.`
+    ? `Nothing called “${esc(what)}” was found. Check the spelling or try a Pokédex number.`
     : err instanceof ReferenceError
-      ? `Part of the site didn't load (${esc(err.message)}). Make sure index.html, styles.css, app.js, gimmicks.js, tracker.js, extras.js and training.js are all on the server, then refresh the page.`
+      ? `Part of the site didn't load (${esc(err.message)}). Make sure index.html, styles.css, app.js, gimmicks.js, tracker.js, extras.js, training.js, battle.js and ux.js are all on the server, then refresh the page.`
       : err instanceof TypeError && /fetch|network|load failed/i.test(err.message)
-        ? `Couldn't reach PokéAPI. Check your internet connection and refresh the page.`
-        : `Something went wrong showing this page (${esc(err.message)}). Refresh the page to try again.`;
-  view.innerHTML = `<div class="error"><p>${msg}</p><p><a href="#">Back to regions</a></p></div>`;
+        ? `Couldn't reach PokéAPI. Check your internet connection, then try again.`
+        : `Something went wrong showing this page (${esc(err.message)}).`;
+  setCrumbs([{ label: "Regions", href: "#" }, { label: err.message === "not-found" ? "Not found" : "Something went wrong" }]);
+  const suggestions = err.message === "not-found" && what && typeof suggestPokemon === "function" ? suggestPokemon(what) : [];
+  const retry = err.message !== "not-found";
+  view.innerHTML = `<div class="error panel" role="alert">
+    <p>${msg}</p>
+    ${suggestions.length ? `<p>Did you mean ${suggestions.map(r => `<a href="#pokemon/${r.slug}">${esc(r.label)}</a>`).join(", ")}?</p>` : ""}
+    <div class="error-actions">
+      ${retry ? `<button type="button" class="btn" id="retry-btn">Try again</button>` : ""}
+      <a class="btn ghost" href="#">Back to regions</a>
+    </div>
+  </div>`;
+  const btn = document.getElementById("retry-btn");
+  if (btn) btn.addEventListener("click", () => route());
 }
 
 /* ---------- Layer 1: Regions ---------- */
@@ -277,7 +299,7 @@ async function renderRegions() {
         <p class="lede">Stats, typing, evolutions, moves, forms and battle gimmicks for all 1,025 Pokémon, plus tools for building teams and tracking your collection.</p>
         <form class="hero-search" id="hero-search" role="search">
           <label class="visually-hidden" for="hero-input">Pokémon name or Pokédex number</label>
-          <input id="hero-input" type="search" list="name-suggestions" placeholder="Try “charizard”, “mr. mime” or “448”" autocomplete="off">
+          <input id="hero-input" type="search" placeholder="Search Pokémon, moves, abilities or items" autocomplete="off">
           <button type="submit" class="btn">Search</button>
         </form>
         <nav class="quick-links" aria-label="Popular tools">
@@ -291,6 +313,7 @@ async function renderRegions() {
       </div>
       <div id="home-extras" class="home-potd"></div>
     </section>
+    <section id="home-mine" class="home-mine" aria-label="Your Pokémon"></section>
     <div class="section-head">
       <h2>Choose a region</h2>
       <p class="muted">Every Pokémon debuted in one of these regions.</p>
@@ -307,6 +330,7 @@ async function renderRegions() {
       }).join("")}
     </div>`;
   renderHomeExtras(document.getElementById("home-extras"));
+  renderHomeMine(document.getElementById("home-mine"));
   document.getElementById("hero-search").addEventListener("submit", e => {
     e.preventDefault();
     const q = document.getElementById("hero-input").value.trim().toLowerCase().replace(/^#?0*(?=\d)/, "").replace(/[.':]/g, "").replace(/♀/g, "-f").replace(/♂/g, "-m").replace(/é/g, "e").replace(/\s+/g, "-");
@@ -352,43 +376,86 @@ async function renderRegion(name) {
       : `Pokémon listed in the ${esc(title(region.pokedexes[0]?.name || name))} Pokédex.`} Select one for its full profile.</p>
     ${forms.length ? `
       <div class="sub-tabs" role="tablist" aria-label="${esc(title(name))} lists">
-        <button type="button" role="tab" class="sub-tab active" aria-selected="true" data-grid="mon-grid">Native Pokémon (${mons.length})</button>
-        <button type="button" role="tab" class="sub-tab" aria-selected="false" data-grid="form-grid">Regional forms (${forms.length})</button>
+        <button type="button" role="tab" class="sub-tab active" aria-selected="true" data-list="native">Native Pokémon (${mons.length})</button>
+        <button type="button" role="tab" class="sub-tab" aria-selected="false" data-list="forms">Regional forms (${forms.length})</button>
       </div>` : ""}
-    <div class="list-tools">
-      <label class="visually-hidden" for="filter">Filter this region's Pokémon</label>
-      <input id="filter" type="search" placeholder="Filter by name or number…" autocomplete="off">
-      <span class="count" id="count"></span>
+    <div class="list-tools region-tools">
+      <div class="field grow"><label for="filter">Search</label>
+        <input id="filter" type="search" placeholder="Name or number…" autocomplete="off"></div>
+      <div class="field"><label for="f-type">Type</label>
+        <select id="f-type"><option value="">Any type</option>${ALL_TYPES.map(t => `<option value="${t}">${title(t)}</option>`).join("")}</select></div>
+      <div class="field"><label for="f-show">Show</label>
+        <select id="f-show">
+          <option value="all">All</option><option value="caught">Caught</option><option value="missing">Not caught</option>
+          <option value="shiny">Shiny</option><option value="favorites">Favorites</option>
+        </select></div>
+      <div class="field"><label for="f-sort">Sort by</label>
+        <select id="f-sort">
+          <option value="number">Pokédex number</option><option value="name">Name (A–Z)</option>
+          <option value="bst">Base stat total (high to low)</option><option value="bst-asc">Base stat total (low to high)</option>
+        </select></div>
     </div>
-    <div class="mon-grid" id="mon-grid">
-      ${mons.map(m => `
-        <a class="mon-card" href="#pokemon/${m.name}" data-key="${m.name} ${m.id}">
-          <img src="${SPRITE(m.id)}" alt="" loading="lazy" width="88" height="88">
-          <span class="num">${pad(m.id)}</span>
-          <span class="name">${esc(pokeName(m.name))}</span>
-          ${trackBadges(m.id)}
-        </a>`).join("")}
-    </div>
-    ${forms.length ? `<div class="mon-grid" id="form-grid" hidden>${forms.map(formCard).join("")}</div>` : ""}`;
+    <p class="count" id="count" aria-live="polite"></p>
+    <div class="mon-grid" id="mon-grid"></div>`;
 
-  const filter = document.getElementById("filter");
-  let activeGrid = document.getElementById("mon-grid");
-  const applyFilter = () => {
-    const q = filter.value.trim().toLowerCase().replace(/^#?0*/, "");
-    const cards = [...activeGrid.querySelectorAll(".mon-card")];
-    let shown = 0;
-    cards.forEach(c => { const hit = !q || c.dataset.key.includes(q); c.hidden = !hit; if (hit) shown++; });
-    const noun = activeGrid.id === "form-grid" ? "regional forms" : "Pokémon";
-    document.getElementById("count").textContent = q ? `${shown} of ${cards.length} ${noun}` : `${cards.length} ${noun}`;
-  };
-  filter.addEventListener("input", applyFilter);
-  view.querySelectorAll(".sub-tab").forEach(btn => btn.addEventListener("click", () => {
-    view.querySelectorAll(".sub-tab").forEach(b => { const on = b === btn; b.classList.toggle("active", on); b.setAttribute("aria-selected", on); });
-    view.querySelectorAll(".mon-grid").forEach(g => (g.hidden = g.id !== btn.dataset.grid));
-    activeGrid = document.getElementById(btn.dataset.grid);
-    applyFilter();
+  const lists = { native: mons, forms };
+  let current = "native", drawId = 0;
+  const bst = new Map(), typeSets = new Map();
+  const $ = id => document.getElementById(id);
+  const fav = new Set(getFavorites().map(f => f.name));
+  const caught = m => (m.id > 10000 ? tracker.formCaught.has(m.name) : tracker.caught.has(m.id));
+  const shiny = m => (m.id > 10000 ? tracker.formShiny.has(m.name) : tracker.shiny.has(m.id));
+
+  async function draw() {
+    const id = ++drawId;
+    const q = normalizeText($("filter").value.replace(/^#?0*/, ""));
+    const type = $("f-type").value, show = $("f-show").value, sort = $("f-sort").value;
+    let list = lists[current].slice();
+    if (type) {
+      if (!typeSets.has(type)) typeSets.set(type, new Set((await get(`/type/${type}`)).pokemon.map(p => idFromUrl(p.pokemon.url))));
+      if (id !== drawId) return;
+      list = list.filter(m => typeSets.get(type).has(m.id));
+    }
+    if (q) list = list.filter(m => normalizeText(pokeName(m.name)).includes(q) || String(m.id).startsWith(q));
+    if (show === "caught") list = list.filter(caught);
+    if (show === "missing") list = list.filter(m => !caught(m));
+    if (show === "shiny") list = list.filter(shiny);
+    if (show === "favorites") list = list.filter(m => fav.has(m.name));
+
+    if (sort.startsWith("bst")) {
+      // Base stat totals need each Pokémon's stats; they load in batches and are cached for next time.
+      const missing = list.filter(m => !bst.has(m.id));
+      for (let i = 0; i < missing.length; i += 40) {
+        $("count").textContent = `Loading base stats… ${i} of ${missing.length}`;
+        const batch = await Promise.all(missing.slice(i, i + 40).map(m => get(`/pokemon/${m.id}`).catch(() => null)));
+        if (id !== drawId) return;
+        batch.forEach((mon, k) => mon && bst.set(missing[i + k].id, mon.stats.reduce((n, st) => n + st.base_stat, 0)));
+      }
+      list.sort((a, b) => sort === "bst" ? (bst.get(b.id) || 0) - (bst.get(a.id) || 0) : (bst.get(a.id) || 0) - (bst.get(b.id) || 0));
+    } else if (sort === "name") list.sort((a, b) => pokeName(a.name).localeCompare(pokeName(b.name)));
+    else list.sort((a, b) => a.id - b.id);
+
+    const total = lists[current].length, noun = current === "forms" ? "regional forms" : "Pokémon";
+    $("count").textContent = list.length === total ? `${total} ${noun}` : `${list.length} of ${total} ${noun}`;
+    $("mon-grid").innerHTML = list.length ? list.map(m => current === "forms" ? formCard(m) : `
+      <a class="mon-card" href="#pokemon/${m.name}">
+        <img src="${SPRITE(m.id)}" alt="" loading="lazy" width="88" height="88">
+        <span class="num">${pad(m.id)}</span>
+        <span class="name">${esc(pokeName(m.name))}</span>
+        ${sort.startsWith("bst") && bst.has(m.id) ? `<span class="num">BST ${bst.get(m.id)}</span>` : ""}
+        ${trackBadges(m.id)}
+      </a>`).join("")
+      : `<p class="muted empty-note">No ${noun} match these filters. Try clearing the search or choosing “All”.</p>`;
+  }
+
+  $("filter").addEventListener("input", draw);
+  ["f-type", "f-show", "f-sort"].forEach(f => $(f).addEventListener("change", draw));
+  view.querySelectorAll("[data-list]").forEach(btn => btn.addEventListener("click", () => {
+    view.querySelectorAll("[data-list]").forEach(b => { const on = b === btn; b.classList.toggle("active", on); b.setAttribute("aria-selected", on); });
+    current = btn.dataset.list;
+    draw();
   }));
-  applyFilter();
+  draw();
 }
 
 /* ---------- Shared loaders ---------- */
@@ -720,7 +787,9 @@ async function renderPokemon(query, tab) {
   const byVg = movesByGame(mon);
   const vgs = Object.keys(byVg).sort((a, b) => vgRank(b) - vgRank(a));   // newest game first
 
+  addRecent({ name: mon.name, id: mon.id });
   view.innerHTML = `
+    ${dexNav(species.id, activeTab)}
     <section class="hero">
       <div class="hero-art">
         ${art ? `<img src="${art}" alt="${esc(displayName)} official artwork">` : ""}
@@ -728,18 +797,22 @@ async function renderPokemon(query, tab) {
       </div>
       <div>
         <div class="dex-no">National Pokédex ${pad(species.id)}</div>
-        <h1>${esc(displayName)}</h1>
+        <div class="title-row">
+          <h1>${esc(displayName)}</h1>
+          <div class="title-actions">${favoriteButton({ name: mon.name, id: mon.id }, displayName)}${shareButton()}</div>
+        </div>
         <div class="genus">${esc(genus)}</div>
         <div class="types">${types.map(t => typeBadge(t)).join("")}</div>
         ${trackerToggles(species.id)}
         <dl class="facts">
           <div><dt>Region</dt><dd>${originRegion ? `<a href="#region/${originRegion}">${title(originRegion)}</a>` : "—"}</dd></div>
           <div><dt>Generation</dt><dd>${genLabel(species.generation.name).replace("Generation", "Gen")}</dd></div>
-          <div><dt>Height</dt><dd>${(mon.height / 10).toFixed(1)} m</dd></div>
-          <div><dt>Weight</dt><dd>${(mon.weight / 10).toFixed(1)} kg</dd></div>
+          <div><dt>Height</dt><dd>${heightSpan(mon.height)}</dd></div>
+          <div><dt>Weight</dt><dd>${weightSpan(mon.weight)}</dd></div>
           <div><dt>Base EXP</dt><dd>${mon.base_experience ?? "—"}</dd></div>
           <div><dt>Capture rate</dt><dd>${species.capture_rate} / 255</dd></div>
         </dl>
+        ${unitToggle()}
         ${entry ? `<blockquote class="entry">${esc(entry.flavor_text.replace(/[\f\n\r­]+/g, " "))}<cite>Pokédex entry · Pokémon ${esc(GAME_LABEL[entry.version.name] || title(entry.version.name))}</cite></blockquote>` : ""}
       </div>
     </section>
@@ -896,7 +969,9 @@ async function renderPokemon(query, tab) {
     select.addEventListener("change", () => renderMoves(byVg, select.value, box));
     renderMoves(byVg, select.value, box);
   };
-  wireDetailTabs(mon.name, tab => { if (tab === "moves") loadMoves(); });
+  wireDetailTabs(mon.name, tab => { updateDexNavTab(tab); if (tab === "moves") loadMoves(); });
+  wireFavoriteButton(displayName);
+  document.getElementById("share-btn").addEventListener("click", () => shareLink(pageUrl(`pokemon/${mon.name}`), `${displayName} · Poké Explorer`));
   if (activeTab === "moves") loadMoves();
 
   wireTrackerToggles();
@@ -1040,6 +1115,7 @@ const SECTIONS = [
 
 function navFor(page, param) {
   if (["gimmicks", "team", "damage", "natures"].includes(page)) return ["battle", page];
+  if (page === "type") return ["tools", "typechart"];
   if (page === "tools") return ["tools", param || "compare"];
   if (page === "tracker") return ["tracker", param || "games"];
   if (page === "forms") return ["pokedex", "forms"];
@@ -1089,6 +1165,7 @@ async function route() {
   const [page, param, ...rest] = decodeURIComponent(location.hash.slice(1)).split("/");
   window.scrollTo(0, 0);
   setTab(page, param);
+  updateMainTabLinks();
   try {
     if (page === "region" && param) await renderRegion(param);
     else if (page === "pokemon" && param) await renderPokemon(param, rest[0]);
@@ -1097,9 +1174,12 @@ async function route() {
     else if (page === "gimmicks") await renderGimmicks(param);
     else if (page === "tracker") await renderTracker(param);
     else if (page === "team") await renderTeam(param);
-    else if (page === "damage") await renderDamage();
+    else if (page === "damage") await renderDamage(param);
+    else if (page === "type" && param) await renderTypePage(param);
     else if (page === "tools") await renderTools(param, rest);
     else await renderRegions();
+    rememberPage(page, param);
+    updateMainTabLinks();
     view.focus({ preventScroll: true });
   } catch (err) {
     console.error(err);
@@ -1118,6 +1198,9 @@ document.getElementById("global-search").addEventListener("submit", e => {
 // Every species id (one lightweight request): powers proper display names and the search suggestions.
 const namesReady = get("/pokemon-species?limit=2000").then(d => {
   SPECIES_SLUGS = new Set(d.results.map(s => s.name));
+  const list = d.results.map(s => ({ name: s.name, id: idFromUrl(s.url) }));
+  list.forEach(s => (SPECIES_BY_ID[s.id] = s.name));
+  indexSpecies(list);
   document.getElementById("name-suggestions").innerHTML =
     d.results.map(s => `<option value="${s.name}">${esc(pokeName(s.name))}</option>`).join("");
 }).catch(() => {});
