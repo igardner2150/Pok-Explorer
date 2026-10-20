@@ -33,7 +33,43 @@ const TYPE_COLOR = {
   rock:"#a8903a", ghost:"#6a5694", dragon:"#6234e8", dark:"#6b5546", steel:"#9a9ab5", fairy:"#d97fa0"
 };
 
-const STAT_LABEL = { hp:"HP", attack:"Attack", defense:"Defense", "special-attack":"Sp. Atk", "special-defense":"Sp. Def", speed:"Speed" };
+// Shiny odds per game (PokéAPI has no shiny data, so this table is maintained here).
+// base = full-odds wild encounter; charm = with the Shiny Charm (null = no Shiny Charm in that game).
+const SHINY = (() => {
+  const rows = {};
+  const set = (games, base, charm) => games.forEach(g => (rows[g] = { base, charm }));
+  set(["red", "blue", "yellow"], null, null);                                     // shinies didn't exist yet
+  set(["gold", "silver", "crystal", "ruby", "sapphire", "emerald", "firered", "leafgreen",
+       "colosseum", "xd", "diamond", "pearl", "platinum", "heartgold", "soulsilver",
+       "black", "white"], 8192, null);
+  set(["black-2", "white-2"], 8192, 2731);                                         // charm = 3 rolls of 1/8192
+  set(["x", "y", "omega-ruby", "alpha-sapphire", "sun", "moon", "ultra-sun", "ultra-moon",
+       "lets-go-pikachu", "lets-go-eevee", "sword", "shield", "brilliant-diamond", "shining-pearl",
+       "scarlet", "violet"], 4096, 1365);                                          // charm = 3 rolls of 1/4096
+  set(["legends-arceus"], 4096, 1024);                                             // charm = 4 rolls of 1/4096
+  return rows;
+})();
+
+// Version groups in release order, used to sort the "Moves" game picker.
+const VG_ORDER = ["red-blue", "yellow", "gold-silver", "crystal", "ruby-sapphire", "emerald", "firered-leafgreen",
+  "colosseum", "xd", "diamond-pearl", "platinum", "heartgold-soulsilver", "black-white", "black-2-white-2", "x-y",
+  "omega-ruby-alpha-sapphire", "sun-moon", "ultra-sun-ultra-moon", "lets-go-pikachu-lets-go-eevee", "sword-shield",
+  "the-isle-of-armor", "the-crown-tundra", "brilliant-diamond-and-shining-pearl", "legends-arceus", "scarlet-violet",
+  "the-teal-mask", "the-indigo-disk"];
+const VG_LABEL = {
+  "red-blue": "Red / Blue", "gold-silver": "Gold / Silver", "ruby-sapphire": "Ruby / Sapphire",
+  "firered-leafgreen": "FireRed / LeafGreen", "xd": "XD: Gale of Darkness", "diamond-pearl": "Diamond / Pearl",
+  "heartgold-soulsilver": "HeartGold / SoulSilver", "black-white": "Black / White", "black-2-white-2": "Black 2 / White 2",
+  "x-y": "X / Y", "omega-ruby-alpha-sapphire": "Omega Ruby / Alpha Sapphire", "sun-moon": "Sun / Moon",
+  "ultra-sun-ultra-moon": "Ultra Sun / Ultra Moon", "lets-go-pikachu-lets-go-eevee": "Let's Go Pikachu / Eevee",
+  "sword-shield": "Sword / Shield", "the-isle-of-armor": "Sword / Shield: Isle of Armor",
+  "the-crown-tundra": "Sword / Shield: Crown Tundra", "brilliant-diamond-and-shining-pearl": "Brilliant Diamond / Shining Pearl",
+  "legends-arceus": "Legends: Arceus", "scarlet-violet": "Scarlet / Violet", "the-teal-mask": "Scarlet / Violet: Teal Mask",
+  "the-indigo-disk": "Scarlet / Violet: Indigo Disk"
+};
+const METHOD_LABEL = { "level-up": "Level up", machine: "TM / HM / TR", egg: "Egg moves", tutor: "Move tutor" };
+
+const STAT_LABEL ={ hp:"HP", attack:"Attack", defense:"Defense", "special-attack":"Sp. Atk", "special-defense":"Sp. Def", speed:"Speed" };
 
 /* ---------- Helpers ---------- */
 
@@ -212,6 +248,72 @@ async function typeMatchups(types) {
   };
 }
 
+function shinyRows(games) {
+  const pct = n => (100 / n).toFixed(n >= 4000 ? 3 : 2) + "%";
+  const odds = n => `1 in ${n.toLocaleString()} <span class="muted">(${pct(n)})</span>`;
+  const order = Object.keys(SHINY);
+  return [...games].filter(g => g in SHINY).sort((a, b) => order.indexOf(a) - order.indexOf(b)).map(g => {
+    const { base, charm } = SHINY[g];
+    return `<tr>
+      <td>${esc(title(g))}</td>
+      <td>${base ? odds(base) : '<span class="muted">No shinies in this game</span>'}</td>
+      <td>${charm ? odds(charm) : `<span class="muted">${base ? "No Shiny Charm" : "—"}</span>`}</td>
+    </tr>`;
+  }).join("");
+}
+
+// Group every move the Pokémon can learn by game (version group).
+function movesByGame(mon) {
+  const byVg = {};
+  mon.moves.forEach(m => m.version_group_details.forEach(d => {
+    (byVg[d.version_group.name] ||= []).push({
+      name: m.move.name, url: m.move.url, method: d.move_learn_method.name, level: d.level_learned_at
+    });
+  }));
+  return byVg;
+}
+
+const vgRank = vg => { const i = VG_ORDER.indexOf(vg); return i === -1 ? 999 : i; };
+
+let moveRenderToken = 0;
+async function renderMoves(byVg, vg, box) {
+  const token = ++moveRenderToken;
+  const list = byVg[vg] || [];
+  box.innerHTML = `<p class="status">Loading ${list.length} moves…</p>`;
+  const details = new Map(await Promise.all(
+    [...new Set(list.map(m => m.url))].map(async url => [url, await get(url).catch(() => null)])
+  ));
+  if (token !== moveRenderToken) return;   // user switched games while loading
+
+  const methods = [...new Set(list.map(m => m.method))]
+    .sort((a, b) => (Object.keys(METHOD_LABEL).indexOf(a) + 1 || 99) - (Object.keys(METHOD_LABEL).indexOf(b) + 1 || 99));
+
+  box.innerHTML = methods.map(method => {
+    const rows = list.filter(m => m.method === method)
+      .map(m => ({ ...m, d: details.get(m.url) }))
+      .sort((a, b) => method === "level-up" ? a.level - b.level || a.name.localeCompare(b.name) : a.name.localeCompare(b.name));
+    const isLevel = method === "level-up";
+    return `
+      <h3>${esc(METHOD_LABEL[method] || title(method))} <span class="muted">(${rows.length})</span></h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>${isLevel ? "<th>Lv.</th>" : ""}<th>Move</th><th>Type</th><th>Category</th><th class="num">Power</th><th class="num">Acc.</th><th class="num">PP</th></tr></thead>
+          <tbody>
+            ${rows.map(({ level, name, d }) => `<tr>
+              ${isLevel ? `<td class="num">${level === 0 ? "Evo" : level}</td>` : ""}
+              <td><strong>${esc(d ? english(d.names) || title(name) : title(name))}</strong></td>
+              <td>${d?.type ? typeBadge(d.type.name) : "—"}</td>
+              <td>${d?.damage_class ? title(d.damage_class.name) : "—"}</td>
+              <td class="num">${d?.power ?? "—"}</td>
+              <td class="num">${d?.accuracy != null ? d.accuracy + "%" : "—"}</td>
+              <td class="num">${d?.pp ?? "—"}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`;
+  }).join("") || '<p class="muted">No move data for this game.</p>';
+}
+
 async function renderPokemon(query) {
   setCrumbs([{ label: "Regions", href: "#" }, { label: "Loading…" }]);
   view.innerHTML = `<p class="status">Loading ${esc(query)}…</p>`;
@@ -275,6 +377,10 @@ async function renderPokemon(query) {
     [s.front_shiny, "Shiny front"], [s.back_shiny, "Shiny back"],
     [s.front_female, "Female"], [s.front_shiny_female, "Shiny female"]
   ].filter(([src]) => src);
+
+  const shinyHtml = shinyRows(games);
+  const byVg = movesByGame(mon);
+  const vgs = Object.keys(byVg).sort((a, b) => vgRank(b) - vgRank(a));   // newest game first
 
   view.innerHTML = `
     <section class="hero">
@@ -375,7 +481,41 @@ async function renderPokemon(query) {
               </details>`).join("")}
           </div>` : '<p class="muted">No wild encounter locations listed; it may be obtained by evolution, trade, gift or event.</p>'}
       </section>
+
+      <section class="panel wide">
+        <h2>Shiny odds</h2>
+        ${shinyHtml ? `
+          <div class="shiny-pair">
+            ${s.front_default ? `<figure><img src="${s.front_default}" alt="Normal ${esc(displayName)}"><figcaption>Normal</figcaption></figure>` : ""}
+            ${s.front_shiny ? `<figure><img src="${s.front_shiny}" alt="Shiny ${esc(displayName)}"><figcaption>Shiny</figcaption></figure>` : ""}
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Game</th><th>Base odds</th><th>With Shiny Charm</th></tr></thead>
+              <tbody>${shinyHtml}</tbody>
+            </table>
+          </div>
+          <p class="muted note">Full-odds rates for a random encounter. Methods like the Masuda Method, chaining, mass outbreaks and Sandwich powers raise them further, and some legendary or gift Pokémon are shiny-locked.</p>`
+        : '<p class="muted">No shiny data for the games this Pokémon appears in.</p>'}
+      </section>
+
+      <section class="panel wide">
+        <div class="panel-head">
+          <h2>Moves</h2>
+          ${vgs.length ? `<label class="vg-pick"><span>Game</span>
+            <select id="vg-select">${vgs.map(v => `<option value="${v}">${esc(VG_LABEL[v] || title(v))}</option>`).join("")}</select>
+          </label>` : ""}
+        </div>
+        <div id="moves-body">${vgs.length ? "" : '<p class="muted">No move data available.</p>'}</div>
+      </section>
     </div>`;
+
+  if (vgs.length) {
+    const select = document.getElementById("vg-select");
+    const box = document.getElementById("moves-body");
+    select.addEventListener("change", () => renderMoves(byVg, select.value, box));
+    renderMoves(byVg, select.value, box);
+  }
 
   if (cry) {
     const audio = new Audio(cry);
