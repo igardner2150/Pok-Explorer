@@ -239,7 +239,7 @@ async function renderAbilitySearch(body, query) {
     <a class="mon-card" href="#pokemon/${h.name}">
       ${spriteImg(h.id)}
       <span class="num">${h.id <= 1025 ? pad(h.id) : "Form"}</span>
-      <span class="name">${esc(regionalInfo(h.name)?.label || (typeof gimmickLabel === "function" ? gimmickLabel(h.name) : title(h.name)))}</span>
+      <span class="name">${esc(pokeName(h.name))}</span>
     </a>`).join("")}</div>`;
 
   out.innerHTML = `
@@ -302,7 +302,7 @@ async function renderMoveSearch(body, query) {
       <a class="mon-card" href="#pokemon/${h.name}" data-key="${h.name} ${h.id}">
         ${spriteImg(h.id)}
         <span class="num">${h.id <= 1025 ? pad(h.id) : "Form"}</span>
-        <span class="name">${esc(regionalInfo(h.name)?.label || (typeof gimmickLabel === "function" ? gimmickLabel(h.name) : title(h.name)))}</span>
+        <span class="name">${esc(pokeName(h.name))}</span>
       </a>`).join("")}</div>`;
 
   const filter = document.getElementById("mv-filter");
@@ -385,7 +385,7 @@ async function renderBreeding(body, query) {
       const list = l.pokemon_species.map(s => ({ name: s.name, id: idFromUrl(s.url) })).filter(s => s.name !== species.name).sort((a, b) => a.id - b.id);
       return `<h3>${esc(eggLabel(l.name))} group <span class="muted">(${list.length})</span></h3>
         <div class="mon-grid compact">${list.map(s => `<a class="mon-card" href="#tools/breeding/${s.name}" data-key="${s.name}">
-          <img src="${SPRITE(s.id)}" alt="" loading="lazy" width="64" height="64"><span class="name">${esc(title(s.name))}</span></a>`).join("")}</div>`;
+          <img src="${SPRITE(s.id)}" alt="" loading="lazy" width="64" height="64"><span class="name">${esc(pokeName(s.name))}</span></a>`).join("")}</div>`;
     }).join("");
     partnersHtml = genderless
       ? `<p><strong>${esc(name)} is genderless, so it can only breed with Ditto.</strong></p>`
@@ -407,7 +407,7 @@ async function renderBreeding(body, query) {
         <div><dt>Egg groups</dt><dd>${groups.map(eggLabel).join(" / ")}</dd></div>
         <div><dt>Gender</dt><dd>${genderText(species.gender_rate)}</dd></div>
         <div><dt>Egg cycles</dt><dd>${species.hatch_counter ?? "—"}</dd></div>
-        <div><dt>Hatches into</dt><dd>${undiscovered && !isDitto ? "—" : isDitto ? "Partner's species" : `<a href="#pokemon/${baby}">${esc(title(baby))}</a>`}</dd></div>
+        <div><dt>Hatches into</dt><dd>${undiscovered && !isDitto ? "—" : isDitto ? "Partner's species" : `<a href="#pokemon/${baby}">${esc(pokeName(baby))}</a>`}</dd></div>
       </dl>
       ${genderBar(species.gender_rate)}
       <p class="note muted">An egg cycle is a set number of steps that varies by game. A Pokémon with Flame Body or Magma Armor in your party halves hatching time.${!undiscovered && baby !== species.name && !isDitto ? ` Some babies need the parent to hold an incense item to appear; otherwise the egg hatches into the next stage.` : ""}</p>
