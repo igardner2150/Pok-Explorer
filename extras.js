@@ -391,37 +391,45 @@ async function runSearch(out) {
   if (st.gen) cands = cands.filter(c => c.id <= 1025 && String(genOf(c.id)) === st.gen);
 
   const needStats = (st.stat && st.min) || st.sort !== "id";
-  let rows = cands.map(c => ({ ...c }));
-  if (needStats) {
-    const bar = n => (out.innerHTML = `<p class="status">Loading stats… ${n} / ${rows.length}</p><div class="bar"><span style="width:${n / rows.length * 100}%"></span></div>`);
-    for (let i = 0; i < rows.length; i += 25) {
-      bar(i);
-      const chunk = await Promise.all(rows.slice(i, i + 25).map(r => get(`/pokemon/${r.name}`).catch(() => null)));
-      chunk.forEach((mon, j) => {
-        const r = rows[i + j];
-        if (!mon) return;
-        r.stats = baseStats(mon);
-        r.stats.total = Object.values(r.stats).reduce((a, b) => a + b, 0);
-        r.types = mon.types.map(t => t.type.name);
-      });
-    }
-    if (st.stat && st.min) rows = rows.filter(r => r.stats && r.stats[st.stat] >= Number(st.min));
-    if (st.sort !== "id") rows.sort((a, b) => (b.stats?.[st.sort] || 0) - (a.stats?.[st.sort] || 0));
-  }
-  if (st.sort === "id") rows.sort((a, b) => a.id - b.id);
+  const rows = cands.map(c => ({ ...c }));
+  const statKey = st.sort !== "id" ? st.sort : st.stat;
+  const searchId = ++runSearch.current;   // a newer search cancels this one
 
-  out.innerHTML = rows.length ? `
-    <p class="count">${rows.length} result${rows.length > 1 ? "s" : ""}</p>
-    <div class="mon-grid">${rows.map(r => `
-      <a class="mon-card" href="#pokemon/${r.name}">
-        ${spriteImg(r.id)}
-        <span class="num">${r.id <= 1025 ? pad(r.id) : "Form"}</span>
-        <span class="name">${esc(pokeName(r.name))}</span>
-        ${r.stats && (st.stat || st.sort !== "id") ? `<span class="num">${esc(STAT_LABEL[st.sort !== "id" ? st.sort : st.stat] || "Total")} ${r.stats[st.sort !== "id" ? st.sort : st.stat]}</span>` : ""}
-        ${r.id <= 1025 ? trackBadges(r.id) : ""}
-      </a>`).join("")}</div>`
-    : `<p class="muted">No Pokémon match those filters. Try lowering the minimum stat or removing a type.</p>`;
+  // Draws whatever has loaded so far; results fill in while the rest load.
+  const draw = loaded => {
+    let list = needStats ? rows.slice(0, loaded).filter(r => r.stats) : rows.slice();
+    if (st.stat && st.min) list = list.filter(r => r.stats[st.stat] >= Number(st.min));
+    list.sort(st.sort === "id" ? (a, b) => a.id - b.id : (a, b) => (b.stats?.[st.sort] || 0) - (a.stats?.[st.sort] || 0));
+    const done = loaded >= rows.length;
+    out.innerHTML = `
+      ${done ? "" : `<div class="search-progress"><span>Checking stats… ${loaded} of ${rows.length} Pokémon</span><div class="bar"><span style="width:${loaded / rows.length * 100}%"></span></div></div>`}
+      ${list.length ? `<p class="count">${list.length} result${list.length > 1 ? "s" : ""}${done ? "" : " so far"}</p>
+      <div class="mon-grid">${list.map(r => `
+        <a class="mon-card" href="#pokemon/${r.name}">
+          ${spriteImg(r.id)}
+          <span class="num">${r.id <= 1025 ? pad(r.id) : "Form"}</span>
+          <span class="name">${esc(pokeName(r.name))}</span>
+          ${r.stats && statKey ? `<span class="num">${esc(STAT_LABEL[statKey] || "Total")} ${r.stats[statKey]}</span>` : ""}
+          ${r.id <= 1025 ? trackBadges(r.id) : ""}
+        </a>`).join("")}</div>`
+      : done ? `<p class="muted">No Pokémon match those filters. Try lowering the minimum stat or removing a type.</p>` : ""}`;
+  };
+
+  if (!needStats) return draw(rows.length);
+  const BATCH = 40;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const chunk = await Promise.all(rows.slice(i, i + BATCH).map(r => get(`/pokemon/${r.name}`).catch(() => null)));
+    if (searchId !== runSearch.current) return;
+    chunk.forEach((mon, j) => {
+      if (!mon) return;
+      const r = rows[i + j];
+      r.stats = baseStats(mon);
+      r.stats.total = Object.values(r.stats).reduce((a, b) => a + b, 0);
+    });
+    draw(Math.min(rows.length, i + BATCH));
+  }
 }
+runSearch.current = 0;
 
 /* Who's That Pokémon? */
 const QUIZ_KEY = "pokeExplorerQuizBest";
