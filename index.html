@@ -4,12 +4,39 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Poké Explorer</title>
+  <meta name="description" content="Look up any Pokémon: stats, typing, evolutions, moves, regional forms, battle gimmicks, natures, breeding and shiny odds. Build teams, calculate damage and track your collection.">
+  <meta name="theme-color" content="#d63a2f">
+
+  <!-- Link previews (Discord, iMessage, Slack, X, Facebook) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Poké Explorer">
+  <meta property="og:title" content="Poké Explorer">
+  <meta property="og:description" content="Every Pokémon's stats, typing, evolutions, moves, forms and battle gimmicks, plus a team builder, damage calculator and collection tracker.">
+  <meta property="og:image" content="https://igardner2150.github.io/Pok-Explorer/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Poké Explorer: look up any Pokémon">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Poké Explorer">
+  <meta name="twitter:description" content="Every Pokémon's stats, typing, evolutions, moves, forms and battle gimmicks, plus a team builder, damage calculator and collection tracker.">
+  <meta name="twitter:image" content="https://igardner2150.github.io/Pok-Explorer/og-image.png">
+
+  <!-- Poké Ball icon for the browser tab -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='29' fill='%23ffffff' stroke='%231a2232' stroke-width='5'/%3E%3Cpath d='M3 32a29 29 0 0 1 58 0z' fill='%23d63a2f' stroke='%231a2232' stroke-width='5' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='9' fill='%23ffffff' stroke='%231a2232' stroke-width='5'/%3E%3C/svg%3E">
+
+  <!-- Apply the saved light/dark choice before the page paints, so it never flashes the wrong theme -->
+  <script>
+    try { var t = localStorage.getItem("pokeExplorerTheme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <a class="skip-link" href="#view">Skip to content</a>
+
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="#">
@@ -22,20 +49,19 @@
         <datalist id="name-suggestions"></datalist>
         <button type="submit">Search</button>
       </form>
+      <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Color theme"></button>
     </div>
   </header>
 
-  <nav class="tabs" aria-label="Sections">
+  <nav class="tabs" aria-label="Main sections">
     <div class="tabs-inner">
-      <a href="#" data-tab="explore">Regions</a>
-      <a href="#forms" data-tab="forms">Regional forms</a>
-      <a href="#gimmicks" data-tab="gimmicks">Battle gimmicks</a>
-      <a href="#natures" data-tab="natures">Natures</a>
-      <a href="#team" data-tab="team">Team builder</a>
+      <a href="#" data-tab="pokedex">Pokédex</a>
+      <a href="#gimmicks" data-tab="battle">Battle</a>
       <a href="#tools" data-tab="tools">Tools</a>
       <a href="#tracker" data-tab="tracker">My tracker</a>
     </div>
   </nav>
+  <nav class="subnav" id="subnav" aria-label="Section pages"></nav>
 
   <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
 
@@ -44,7 +70,13 @@
   </main>
 
   <footer class="foot">
-    <p>Poké Explorer by Jaden Stokes &amp; Ian Gardner. Data from <a href="https://pokeapi.co" target="_blank" rel="noopener">PokéAPI</a>. Pokémon and its names are trademarks of Nintendo, Creatures Inc. and GAME FREAK.</p>
+    <div class="foot-inner">
+      <div>
+        <strong class="foot-brand">Poké Explorer</strong>
+        <p>Built by Jaden Stokes &amp; Ian Gardner. Data from <a href="https://pokeapi.co" target="_blank" rel="noopener">PokéAPI</a>.</p>
+      </div>
+      <p class="foot-legal">Pokémon and all related names are trademarks of Nintendo, Creatures Inc. and GAME FREAK. This is a fan project and is not affiliated with them.</p>
+    </div>
   </footer>
 
   <script src="app.js"></script>
@@ -52,5 +84,6 @@
   <script src="tracker.js"></script>
   <script src="extras.js"></script>
   <script src="training.js"></script>
+  <script src="battle.js"></script>
 </body>
 </html>
