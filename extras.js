@@ -35,6 +35,219 @@ function monLabel(species, mon) {
 
 const artOf = mon => mon.sprites.other?.["official-artwork"]?.front_default || mon.sprites.other?.home?.front_default || mon.sprites.front_default || "";
 
+/* ---------- Team synergy score ---------- */
+
+// Each member: { name, label, types: ["water", "ground"], stats: { hp, attack, … } } (base stats).
+// Returns a score out of 100, a letter grade, five scored parts and plain-language tips.
+const SYNERGY_PARTS = [["defense", "Defensive balance", 30], ["offense", "Offensive coverage", 25],
+  ["roles", "Role mix", 20], ["speed", "Speed control", 15], ["variety", "Type variety", 10]];
+const gradeFor = s => s >= 85 ? "A" : s >= 75 ? "B" : s >= 62 ? "C" : s >= 50 ? "D" : "F";
+const article = w => (/^[aeiou]/i.test(w) ? "an" : "a");
+const listTypes = (ts, joiner = "or") => ts.map(title).join(", ").replace(/, ([^,]*)$/, ` ${joiner} $1`);
+
+function attackStyle(b) {
+  if (b.attack > b["special-attack"] + 10) return "physical";
+  if (b["special-attack"] > b.attack + 10) return "special";
+  return "mixed";
+}
+const isBulky = b => ["physical-wall", "special-wall"].includes(suggestRole(b)) || b.hp + b.defense + b["special-defense"] >= 285;
+
+function teamSynergy(members, td) {
+  const n = members.length;
+  const parts = {}, tips = [];
+  if (!n) return { score: 0, grade: "F", parts: [], tips: [], size: 0 };
+
+  // Defense: attacking types that hit several members super effectively with little backup.
+  let penalty = 0;
+  const problems = [];
+  for (const atk of ALL_TYPES) {
+    const mults = members.map(m => effectiveness(td, atk, m.types));
+    const weak = mults.filter(x => x > 1).length, resist = mults.filter(x => x < 1).length;
+    const quad = mults.filter(x => x >= 4).length;
+    let p = weak >= 3 ? 6 + (weak - 3) * 2 : weak === 2 && resist === 0 ? 3 : 0;
+    p += quad;
+    const quadNames = members.filter((m, i) => mults[i] >= 4).map(m => m.label);
+    if (p) { penalty += p; problems.push({ atk, weak, resist, p, quadNames, major: p > quad }); }
+  }
+  problems.sort((a, b) => b.p - a.p);
+  parts.defense = Math.max(0, 30 - penalty);
+  for (const pr of problems.slice(0, 2)) {
+    const resisters = ALL_TYPES.filter(t => effectiveness(td, pr.atk, [t]) < 1);
+    if (pr.major) tips.push(`${title(pr.atk)} hits ${pr.weak} of your Pokémon super effectively${pr.resist ? "" : " and nothing resists it"}. ${article(resisters[0]) === "an" ? "An" : "A"} ${listTypes(resisters.slice(0, 4))} type would help.`);
+    else tips.push(`${pr.quadNames.join(" and ")} ${pr.quadNames.length > 1 ? "take" : "takes"} 4× damage from ${title(pr.atk)} moves, so keep ${article(pr.atk)} ${title(pr.atk)}-resistant switch-in ready.`);
+  }
+
+  // Offense: defending types at least one member's own type hits super effectively.
+  const missed = ALL_TYPES.filter(def => !members.some(m => m.types.some(t => effectiveness(td, t, [def]) > 1)));
+  parts.offense = Math.round(25 * (18 - missed.length) / 18);
+  if (missed.length) {
+    const fix = ALL_TYPES.filter(t => effectiveness(td, t, [missed[0]]) > 1);
+    tips.push(`Nothing on your team hits ${listTypes(missed.slice(0, 3))}${missed.length > 3 ? ` (and ${missed.length - 3} more)` : ""} super effectively with its own type. For ${title(missed[0])}, try ${article(fix[0])} ${listTypes(fix)} type.`);
+  }
+
+  // Roles: physical and special attackers, something bulky, and not all one kind of attacker.
+  const styles = members.map(m => attackStyle(m.stats));
+  const phys = styles.filter(s => s !== "special").length, spec = styles.filter(s => s !== "physical").length;
+  const bulky = members.filter(m => isBulky(m.stats)).length;
+  parts.roles = (phys ? 6 : 0) + (spec ? 6 : 0) + (bulky ? 5 : 0) + (Math.abs(phys - spec) <= 2 ? 3 : 0);
+  if (!spec) tips.push("Everyone attacks physically, so one Intimidate or burn slows your whole team. Add a special attacker.");
+  else if (!phys) tips.push("Everyone attacks specially. Add a physical attacker so special walls can’t stop your whole team.");
+  else if (Math.abs(phys - spec) > 2) tips.push(`Your attackers lean ${phys > spec ? "physical" : "special"}. Swapping one for the other kind makes you harder to wall.`);
+  if (!bulky) tips.push("Nobody on the team is bulky. A defensive Pokémon gives you a safe switch-in.");
+
+  // Speed: base Speed 100+ is fast, 80–99 is decent.
+  const fast = members.filter(m => m.stats.speed >= 100).length, mid = members.filter(m => m.stats.speed >= 80 && m.stats.speed < 100).length;
+  parts.speed = Math.min(15, fast * 6 + mid * 3);
+  if (parts.speed < 12) tips.push(`${fast ? `Only ${fast}` : "None"} of your Pokémon ${fast === 1 ? "has" : "have"} base Speed 100 or more, so faster teams will usually move first.`);
+
+  // Variety: the same type on several members stacks the same weaknesses.
+  const counts = {};
+  members.forEach(m => m.types.forEach(t => (counts[t] = (counts[t] || 0) + 1)));
+  const repeats = Object.entries(counts).filter(([, c]) => c > 1);
+  parts.variety = Math.max(0, 10 - repeats.reduce((s, [, c]) => s + (c - 1) * 3, 0));
+  if (repeats.length) tips.push(`${listTypes(repeats.map(([t]) => t), "and")} ${repeats.length > 1 ? "each appear" : "appears"} on more than one Pokémon, which doubles up ${repeats.length > 1 ? "their" : "its"} weaknesses.`);
+
+  // Each empty slot costs 4 points, so a partial team can't outscore a complete one.
+  const emptyPenalty = (6 - Math.min(n, 6)) * 4;
+  const score = Math.max(0, SYNERGY_PARTS.reduce((s, [k]) => s + parts[k], 0) - emptyPenalty);
+  if (n < 6) tips.push(`You have ${n} of 6 Pokémon. Each empty slot costs 4 points; fill them to raise your score.`);
+  return {
+    score, grade: gradeFor(score), size: n, tips, emptyPenalty,
+    parts: SYNERGY_PARTS.map(([key, label, max]) => ({ key, label, max, score: parts[key] }))
+  };
+}
+
+// Well-rounded, fully evolved Pokémon to try in place of (or alongside) team members.
+const SWAP_POOL = ["garchomp", "rotom-wash", "ferrothorn", "toxapex", "corviknight", "dragonite", "gengar", "scizor",
+  "tyranitar", "gardevoir", "excadrill", "volcarona", "azumarill", "gyarados", "lucario", "togekiss", "metagross",
+  "hippowdon", "blissey", "skarmory", "mimikyu", "greninja", "cinderace", "kingambit", "gholdengo", "dragapult",
+  "clefable", "amoonguss", "slowbro", "weavile", "rillaboom", "primarina", "talonflame", "magnezone", "breloom", "mamoswine"];
+
+// Best single changes: replace a member (full team) or add one (open slot). Returns up to `limit` suggestions.
+function bestSwaps(members, pool, td, limit = 3) {
+  const base = teamSynergy(members, td);
+  const taken = new Set(members.map(m => m.name));
+  const out = [];
+  for (const c of pool) {
+    if (taken.has(c.name)) continue;
+    const options = members.length < 6
+      ? [{ out: null, team: [...members, c] }]
+      : members.map((m, i) => ({ out: m, slot: i, team: members.map((x, j) => (j === i ? c : x)) }));
+    let best = null;
+    for (const o of options) {
+      const s = teamSynergy(o.team, td);
+      if (!best || s.score > best.result.score) best = { ...o, result: s };
+    }
+    const gain = best.result.score - base.score;
+    if (gain >= 2) {
+      const why = best.result.parts.map((p, k) => ({ label: p.label, d: p.score - base.parts[k].score })).sort((a, b) => b.d - a.d)[0];
+      out.push({ add: c, remove: best.out, slot: best.slot, from: base.score, to: best.result.score, gain, grade: best.result.grade, why: why.label });
+    }
+  }
+  out.sort((a, b) => b.gain - a.gain || a.add.name.localeCompare(b.add.name));
+  // Don't suggest replacing the same member three times; spread suggestions out when possible.
+  const picked = [], seenOut = new Map();
+  for (const s of out) {
+    const key = s.remove ? s.remove.name : "+";
+    if ((seenOut.get(key) || 0) >= 2) continue;
+    seenOut.set(key, (seenOut.get(key) || 0) + 1);
+    picked.push(s);
+    if (picked.length === limit) break;
+  }
+  return picked;
+}
+
+// Fills the open slots one at a time, each time adding the candidate that gives the highest score.
+function autoComplete(members, pool, td) {
+  const team = [...members], added = [];
+  while (team.length < 6) {
+    const taken = new Set(team.map(m => m.name));
+    let best = null;
+    for (const c of pool) {
+      if (taken.has(c.name)) continue;
+      const score = teamSynergy([...team, c], td).score;
+      if (!best || score > best.score) best = { c, score };
+    }
+    if (!best) break;
+    team.push(best.c);
+    added.push(best.c);
+  }
+  return { added, result: teamSynergy(team, td) };
+}
+
+// Reads a team from what people paste: a team link (…#team/a,b,c) or names separated by commas or new lines.
+function parseTeamInput(text) {
+  let v = String(text || "").trim();
+  const link = v.match(/#team\/([^\s#]+)/);
+  if (link) v = decodeURIComponent(link[1]);
+  return v.split(/[,\n]+/).map(cleanQuery).filter(Boolean).slice(0, 6);
+}
+
+// Side-by-side comparison of two teams: synergy parts, who wins each, and STAB pressure on the other team.
+function teamVersus(teamA, teamB, td) {
+  const a = teamSynergy(teamA, td), b = teamSynergy(teamB, td);
+  const parts = a.parts.map((p, i) => {
+    const q = b.parts[i];
+    return { key: p.key, label: p.label, max: p.max, a: p.score, b: q.score, winner: p.score > q.score ? "a" : q.score > p.score ? "b" : "tie" };
+  });
+  // How many of the other team's Pokémon at least one member can hit super effectively with its own type.
+  const pressure = (atk, def) => def.filter(d => atk.some(m => m.types.some(t => effectiveness(td, t, d.types) > 1))).length;
+  return {
+    a, b, parts,
+    winner: a.score > b.score ? "a" : b.score > a.score ? "b" : "tie",
+    margin: Math.abs(a.score - b.score),
+    categories: { a: parts.filter(p => p.winner === "a").length, b: parts.filter(p => p.winner === "b").length },
+    pressure: { a: pressure(teamA, teamB), b: pressure(teamB, teamA) }
+  };
+}
+
+function synergyPanel(result, shared) {
+  const color = { A: "var(--good)", B: "var(--good)", C: "var(--gold)", D: "var(--accent)", F: "var(--accent)" }[result.grade];
+  return `
+    <section class="panel wide synergy" aria-labelledby="synergy-h">
+      <div class="synergy-head">
+        <div class="grade-badge" style="--grade:${color}" aria-label="Grade ${result.grade}"><span>${result.grade}</span></div>
+        <div>
+          <h2 id="synergy-h">Team synergy score</h2>
+          <p class="synergy-total"><strong>${result.score}</strong> / 100${result.size < 6 ? ` <span class="muted">· ${result.size} of 6 Pokémon so far</span>` : ""}</p>
+          <p class="muted">How well your six work together: shared weaknesses, coverage, roles, speed and variety.</p>
+        </div>
+      </div>
+      <div class="synergy-grid">
+        <div class="synergy-parts">
+          ${result.parts.map(p => `
+            <div class="synergy-part">
+              <span>${p.label}</span><span class="val">${p.score} / ${p.max}</span>
+              <div class="bar" role="img" aria-label="${p.label}: ${p.score} of ${p.max}"><span style="width:${Math.round(100 * p.score / p.max)}%;background:${p.score / p.max >= .75 ? "var(--good)" : p.score / p.max >= .5 ? "var(--gold)" : "var(--accent)"}"></span></div>
+            </div>`).join("")}
+          ${result.emptyPenalty ? `<div class="synergy-part penalty"><span>Empty slots (${6 - result.size})</span><span class="val">−${result.emptyPenalty}</span></div>` : ""}
+        </div>
+        <div>
+          <h3>How to improve</h3>
+          ${result.tips.length ? `<ul class="plain synergy-tips">${result.tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : `<p>No weak spots found. This team is well balanced.</p>`}
+        </div>
+      </div>
+      <div id="synergy-swaps" class="synergy-swaps">
+        <h3>Suggested swaps</h3>
+        <p class="muted">Checking ${SWAP_POOL.length} popular Pokémon against your team…</p>
+      </div>
+    </section>`;
+}
+
+function swapsHtml(swaps, shared) {
+  if (!swaps.length) return `<h3>Suggested swaps</h3><p class="muted">No single change from our list of ${SWAP_POOL.length} popular Pokémon raises your score. Nice team.</p>`;
+  return `<h3>Suggested swaps</h3>
+    <ul class="plain swap-list">${swaps.map((s, i) => `
+      <li>
+        <img src="${SPRITE(s.add.id)}" alt="" width="56" height="56" loading="lazy">
+        <div>
+          <strong>${s.remove ? `Swap ${esc(s.remove.label)} for ${esc(s.add.label)}` : `Add ${esc(s.add.label)}`}</strong>
+          <span class="muted">${s.from} → ${s.to} (+${s.gain}, grade ${s.grade}) · biggest gain: ${esc(s.why.toLowerCase())}</span>
+        </div>
+        ${shared ? "" : `<button type="button" class="btn ghost" data-swap="${i}">Try it</button>`}
+      </li>`).join("")}</ul>`;
+}
+
 /* ---------- Team builder ---------- */
 
 const TEAM_KEY = "pokeExplorerTeam";
@@ -60,7 +273,8 @@ async function renderTeam(shared) {
       </div>
       <div class="page-actions">
         ${sharedList ? `<button type="button" class="btn" id="team-save">Save as my team</button>` : ""}
-        ${filledNames.length ? `<button type="button" class="btn ghost" id="team-share">Share this team</button>` : ""}
+        ${filledNames.length ? `<button type="button" class="btn ghost" id="team-share">Share this team</button>
+          <a class="btn ghost" href="#teamvs/${filledNames.map(encodeURIComponent).join(",")}/">Compare with another team</a>` : ""}
       </div>
     </div>
     ${sharedList ? "" : hintBox("team")}
@@ -156,8 +370,14 @@ async function renderTeam(shared) {
   const threats = rows.filter(r => r.threat).sort((a, b) => b.weak - a.weak);
   const gaps = offense.filter(o => o.best <= 1);
 
+  const synergyTeam = members.map((m, i) => m && !m.error
+    ? { name: m.mon.name, label: monLabel(m.species, m.mon), types: m.types, stats: baseStats(m.mon), id: m.mon.id, slot: i }
+    : null).filter(Boolean);
+  const synergy = teamSynergy(synergyTeam, td);
+
   out.innerHTML = `
     <div class="sections">
+      ${synergyPanel(synergy, !!sharedList)}
       <section class="panel">
         <h2>Biggest threats</h2>
         ${threats.length ? `<ul class="plain">${threats.map(r => `<li>${typeBadge(r.atk)} hits <strong>${r.weak}</strong> of your Pokémon super effectively${r.resist ? `, ${r.resist} resist it` : ", and nothing resists it"}.</li>`).join("")}</ul>`
@@ -193,6 +413,135 @@ async function renderTeam(shared) {
         </table></div>
       </section>
     </div>`;
+
+  // Swap suggestions need the candidates' stats and types; they load after the grade is on screen.
+  const pool = (await Promise.all(SWAP_POOL.map(s => get(`/pokemon/${s}`).catch(() => null))))
+    .filter(Boolean)
+    .map(mon => ({ name: mon.name, label: pokeName(mon.name), types: mon.types.map(t => t.type.name), stats: baseStats(mon), id: mon.id }));
+  const box = document.getElementById("synergy-swaps");
+  if (!box) return;   // the visitor already left the page
+  const swaps = bestSwaps(synergyTeam, pool, td);
+  const open = 6 - synergyTeam.length;
+  const fill = !sharedList && open > 0 && pool.length ? autoComplete(synergyTeam, pool, td) : null;
+  box.innerHTML = (fill && fill.added.length ? `
+    <div class="autofill">
+      <div>
+        <h3>Auto-complete my team</h3>
+        <p>Fill the ${open} empty slot${open > 1 ? "s" : ""} with ${fill.added.map(c => esc(c.label)).join(", ")}: score ${synergy.score} → ${fill.result.score} (grade ${fill.result.grade}).</p>
+      </div>
+      <button type="button" class="btn" id="autofill-btn">Auto-complete</button>
+    </div>` : "") + swapsHtml(swaps, !!sharedList);
+  const fillBtn = document.getElementById("autofill-btn");
+  if (fillBtn) fillBtn.addEventListener("click", () => {
+    const names = fill.added.map(c => c.name);
+    team.forEach((x, i) => { if (!x && names.length) team[i] = names.shift(); });
+    saveTeam(team);
+    renderTeam();
+  });
+  box.querySelectorAll("[data-swap]").forEach(btn => btn.addEventListener("click", () => {
+    const s = swaps[Number(btn.dataset.swap)];
+    const slot = s.remove ? s.remove.slot : team.findIndex(x => !x);
+    if (slot < 0) return;
+    team[slot] = s.add.name;
+    saveTeam(team);
+    renderTeam();
+  }));
+}
+
+/* ---------- Compare two teams (#teamvs/a,b,c/d,e,f) ---------- */
+
+async function renderTeamCompare(aParam = "", bParam = "") {
+  setCrumbs([{ label: "Battle", href: "#gimmicks" }, { label: "Team builder", href: "#team" }, { label: "Compare teams" }]);
+  const mine = loadTeam().filter(Boolean);
+  const listA = aParam ? parseTeamInput(aParam) : mine;
+  const listB = parseTeamInput(bParam);
+  const pretty = list => list.map(pokeName).join(", ");
+
+  view.innerHTML = `
+    <div class="page-head">
+      <div>
+        <h1>Compare teams</h1>
+        <p class="lede">Put two teams side by side to see which one works together better, category by category. Paste a team link or type up to six names separated by commas.</p>
+      </div>
+    </div>
+    <form class="panel vs-form" id="vs-form">
+      <div class="field"><label for="vs-a">Team A</label>
+        <input id="vs-a" type="text" value="${esc(pretty(listA))}" placeholder="garchomp, rotom-wash, ferrothorn…" autocomplete="off"></div>
+      <div class="field"><label for="vs-b">Team B</label>
+        <input id="vs-b" type="text" value="${esc(pretty(listB))}" placeholder="Paste a team link or type names" autocomplete="off"></div>
+      <div class="vs-actions">
+        <button type="submit" class="btn">Compare</button>
+        ${mine.length ? `<button type="button" class="btn ghost" id="vs-mine">Use my team as A</button>` : ""}
+        <button type="button" class="btn ghost" id="vs-swap">Swap sides</button>
+      </div>
+    </form>
+    <div id="vs-out">${listA.length && listB.length ? loadingBlock("Comparing teams…") : `<p class="muted">Enter both teams to compare them.</p>`}</div>`;
+
+  const go = (a, b) => { location.hash = `teamvs/${a.map(encodeURIComponent).join(",")}/${b.map(encodeURIComponent).join(",")}`; };
+  const read = id => parseTeamInput(document.getElementById(id).value);
+  document.getElementById("vs-form").addEventListener("submit", e => { e.preventDefault(); go(read("vs-a"), read("vs-b")); });
+  document.getElementById("vs-swap").addEventListener("click", () => go(read("vs-b"), read("vs-a")));
+  const mineBtn = document.getElementById("vs-mine");
+  if (mineBtn) mineBtn.addEventListener("click", () => go(mine, read("vs-b")));
+  if (!listA.length || !listB.length) return;
+
+  const td = await allTypeData();
+  const load = list => Promise.all(list.map(async name => {
+    try {
+      const { species, mon } = await loadSpeciesAndMon(name);
+      return { name: mon.name, label: monLabel(species, mon), types: mon.types.map(t => t.type.name), stats: baseStats(mon), id: mon.id };
+    } catch { return { missing: name }; }
+  }));
+  const [rawA, rawB] = await Promise.all([load(listA), load(listB)]);
+  const out = document.getElementById("vs-out");
+  if (!out) return;
+  const missing = [...rawA, ...rawB].filter(m => m.missing).map(m => m.missing);
+  const teamA = rawA.filter(m => !m.missing), teamB = rawB.filter(m => !m.missing);
+  if (!teamA.length || !teamB.length) { out.innerHTML = `<p class="muted">Couldn't find enough Pokémon to compare. Check the spelling and try again.</p>`; return; }
+
+  const v = teamVersus(teamA, teamB, td);
+  const side = (key, team, r) => `
+    <div class="vs-side ${v.winner === key ? "win" : ""}">
+      <p class="vs-label">Team ${key.toUpperCase()}${v.winner === key ? ' <span class="win-chip">Winner</span>' : ""}</p>
+      <div class="vs-mons">${team.map(m => `<a href="#pokemon/${m.name}" title="${esc(m.label)}"><img src="${SPRITE(m.id)}" alt="${esc(m.label)}" width="64" height="64" loading="lazy"></a>`).join("")}</div>
+      <p class="vs-score"><span class="vs-grade">${r.grade}</span> <strong>${r.score}</strong> / 100${r.size < 6 ? ` <span class="muted">(${r.size} Pokémon)</span>` : ""}</p>
+    </div>`;
+  const verdict = v.winner === "tie"
+    ? `It's a tie at ${v.a.score} points.`
+    : `Team ${v.winner.toUpperCase()} wins by ${v.margin} point${v.margin === 1 ? "" : "s"} and takes ${v.categories[v.winner]} of 5 categories.`;
+  const shareUrl = `${location.origin}${location.pathname}#teamvs/${teamA.map(m => m.name).join(",")}/${teamB.map(m => m.name).join(",")}`;
+
+  out.innerHTML = `
+    ${missing.length ? `<p class="note muted">Couldn't find: ${missing.map(esc).join(", ")}. Compared the rest.</p>` : ""}
+    <section class="panel vs-panel">
+      <div class="vs-head">${side("a", teamA, v.a)}<p class="vs-vs" aria-hidden="true">vs</p>${side("b", teamB, v.b)}</div>
+      <p class="vs-verdict">${verdict}</p>
+      <div class="table-wrap"><table class="data-table vs-table">
+        <thead><tr><th>Category</th><th class="num">Team A</th><th class="num">Team B</th><th class="hide-sm">Better</th></tr></thead>
+        <tbody>
+          ${v.parts.map(p => `<tr><td>${p.label} <span class="muted hide-sm">(out of ${p.max})</span></td>
+            <td class="num ${p.winner === "a" ? "good-cell" : ""}">${p.a}</td><td class="num ${p.winner === "b" ? "good-cell" : ""}">${p.b}</td>
+            <td class="hide-sm">${p.winner === "tie" ? '<span class="muted">Tie</span>' : `Team ${p.winner.toUpperCase()}`}</td></tr>`).join("")}
+          ${v.a.emptyPenalty || v.b.emptyPenalty ? `<tr><td>Empty slots</td><td class="num">${v.a.emptyPenalty ? "−" + v.a.emptyPenalty : "0"}</td>
+            <td class="num">${v.b.emptyPenalty ? "−" + v.b.emptyPenalty : "0"}</td><td class="hide-sm"></td></tr>` : ""}
+          <tr class="vs-total"><td><strong>Total</strong></td><td class="num"><strong>${v.a.score}</strong></td><td class="num"><strong>${v.b.score}</strong></td>
+            <td class="hide-sm">${v.winner === "tie" ? "Tie" : `Team ${v.winner.toUpperCase()}`}</td></tr>
+        </tbody>
+      </table></div>
+      <h3>Head-to-head type pressure</h3>
+      <p>Team A’s own-type moves hit <strong>${v.pressure.a} of ${teamB.length}</strong> of Team B’s Pokémon super effectively.
+         Team B’s hit <strong>${v.pressure.b} of ${teamA.length}</strong> of Team A’s.</p>
+      <p class="muted small">The synergy score measures how well each team works together. Real battles also depend on moves, items, abilities and the player.</p>
+      <div class="vs-actions">
+        <button type="button" class="btn ghost" id="vs-share">Copy link to this comparison</button>
+        <span class="muted small" id="vs-share-note"></span>
+      </div>
+    </section>`;
+  document.getElementById("vs-share").addEventListener("click", async () => {
+    const note = document.getElementById("vs-share-note");
+    try { await navigator.clipboard.writeText(shareUrl); note.textContent = "Copied!"; }
+    catch { note.textContent = shareUrl; }
+  });
 }
 
 /* ---------- Tools tab ---------- */
