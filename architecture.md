@@ -47,7 +47,7 @@ The scripts are plain JavaScript loaded in order by `index.html` (no framework, 
 | `app.js` | `get()` and its caches, display-name helpers, the router and section navigation, theme switch, Regions → region list → Pokémon details, regional forms, natures |
 | `gimmicks.js` | Mega Evolution, Primal Reversion, Z-Moves, Ultra Burst, Dynamax, Gigantamax and Terastallization, plus their reference tables (items, locations, Z-Move and Max Move names) |
 | `tracker.js` | Games owned, caught/shiny Pokédex (list and PC boxes), forms, shiny hunts, export/import |
-| `extras.js` | Team builder and team links, Compare, Type chart, Advanced search, Who's That Pokémon?, Pokémon of the day |
+| `extras.js` | Team builder, team synergy score, auto-complete, Compare teams and team links, Compare, Type chart, Advanced search, Who's That Pokémon?, Pokémon of the day |
 | `training.js` | Stat formula and calculator, IV/EV/nature guide, ability and move search, breeding, the Training & breeding panel |
 | `battle.js` | Damage formula and calculator (abilities, items, Tera, field), Items browser |
 | `ux.js` | Search index and dropdown (fuzzy matching), favorites and recently viewed, previous/next, metric/imperial units, share links and damage-link encoding, first-time tips, remembered sections, type pages, contrast checking |
@@ -79,6 +79,7 @@ sequenceDiagram
 | `#forms`, `#forms/alola` | Regional forms | `renderRegionalForms` |
 | `#gimmicks`, `#gimmicks/charizard` | Battle gimmicks | `renderGimmicks` |
 | `#team`, `#team/a,b,c` | Team builder, shared team | `renderTeam` |
+| `#teamvs/a,b,c/d,e,f` | Compare two teams | `renderTeamCompare` |
 | `#damage`, `#damage/{settings}` | Damage calculator (settings shared in the link) | `renderDamage` |
 | `#type/fire` | Type page: matchups and every Pokémon of that type | `renderTypePage` |
 | `#natures`, `#natures/garchomp` | Natures | `renderNatures` |
@@ -140,6 +141,7 @@ Every read and write is wrapped in `try/catch`, and a corrupted or old-format sa
 | Damage (Gen 5+): ⌊⌊⌊2L/5 + 2⌋·Power·A/D⌋/50⌋ + 2, then spread, weather, crit, random 85–100%, STAB, type, burn, other modifiers | `damageRolls` | Bulbapedia's Glaceon vs Garchomp example (168–196) |
 | Chance to KO in n hits (every combination of the 16 rolls) | `koChance` | Unit tests |
 | Chance of a shiny within n encounters: 1 − (1 − 1/N)ⁿ | `chanceBy` | Unit tests |
+| Team synergy (out of 100): defensive balance 30, offensive coverage 25, role mix 20, speed 15, type variety 10; minus 4 per empty slot; A ≥ 85, B ≥ 75, C ≥ 62, D ≥ 50 | `teamSynergy`, `bestSwaps`, `autoComplete`, `teamVersus` | Unit tests |
 
 ## Testing
 
