@@ -22,6 +22,8 @@ No build step or install is needed. Keep the three files in the same folder and 
 | b) Pokémon from a region | `#region/kanto` | Every Pokémon that originates in that region, with sprite and Pokédex #, plus a live filter | `GET /generation/{id}` (or `GET /pokedex/{name}` for Hisui) |
 | c) Pokémon details | `#pokemon/pikachu` | Pokédex # and entry, genus, region, height/weight, typing, weaknesses / strengths / resistances, base stats, abilities (incl. hidden), evolution chain with evolution methods, sprites and alternate forms, cry, games, wild encounter locations, shiny odds per game (with and without the Shiny Charm), every learnable move per game (level-up with levels, TM/HM/TR, egg, tutor) | `GET /pokemon-species/{name}`, `GET /pokemon/{id}`, `GET /evolution-chain/{id}`, `GET /type/{name}`, `GET /ability/{name}`, `GET /pokemon/{id}/encounters`, `GET /move/{name}` |
 
+There is also a **Natures** tab (`#natures`, or `#natures/garchomp` for a specific Pokémon) on the home page. You pick a role (fast physical or special attacker, mixed attacker, physical or special wall, Trick Room, fast support) and it recommends natures, explains each pick using the Pokémon's base stats, and shows all 25 natures in a +/− grid (`GET /nature`, `GET /nature/{name}`). Each details page also suggests a role and its best natures.
+
 The search bar in the header jumps straight to Layer 3 from anywhere (name or National Pokédex number). Breadcrumbs link back up through the layers, and the browser Back button works because each layer has its own URL hash.
 
 ## How some of the data is derived
@@ -34,5 +36,7 @@ The search bar in the header jumps straight to Layer 3 from anywhere (name or Na
 
 - **Moves** come from the Pokémon's `moves` list, grouped by game (version group). A game picker switches between games; each move's type, category, power, accuracy and PP come from `/move/{name}`. Level "Evo" means it's learned on evolving.
 - **Shiny odds** aren't in PokéAPI, so `app.js` has a table of full-odds rates per game: 1/8192 in Gens 2–5, 1/4096 from Gen 6 on. With the Shiny Charm it's about 1/2731 in Black 2/White 2, 1/1365 in later games, and 1/1024 in Legends: Arceus.
+
+- **Suggested role** compares the higher attacking stat with the higher defense, then physical vs. special (within 10 points counts as mixed), then Speed (under 50 suggests Trick Room). Every Pokémon can have any nature; the role only decides which ones are recommended.
 
 Responses are cached in memory so moving between layers doesn't re-download data.
