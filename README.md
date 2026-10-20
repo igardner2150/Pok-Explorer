@@ -20,7 +20,7 @@ No build step or install is needed. Keep the three files in the same folder and 
 |---|---|---|---|
 | a) Regions | `#` | Every region as a card (Kanto, Johto, … Paldea) | `GET /region`, `GET /region/{name}` |
 | b) Pokémon from a region | `#region/kanto` | Every Pokémon that originates in that region, with sprite and Pokédex #, plus a live filter | `GET /generation/{id}` (or `GET /pokedex/{name}` for Hisui) |
-| c) Pokémon details | `#pokemon/pikachu` | Pokédex # and entry, genus, region, height/weight, typing, weaknesses / strengths / resistances, base stats, abilities (incl. hidden), evolution chain with evolution methods, sprites and alternate forms, cry, games, wild encounter locations | `GET /pokemon-species/{name}`, `GET /pokemon/{id}`, `GET /evolution-chain/{id}`, `GET /type/{name}`, `GET /ability/{name}`, `GET /pokemon/{id}/encounters` |
+| c) Pokémon details | `#pokemon/pikachu` | Pokédex # and entry, genus, region, height/weight, typing, weaknesses / strengths / resistances, base stats, abilities (incl. hidden), evolution chain with evolution methods, sprites and alternate forms, cry, games, wild encounter locations, shiny odds per game (with and without the Shiny Charm), every learnable move per game (level-up with levels, TM/HM/TR, egg, tutor) | `GET /pokemon-species/{name}`, `GET /pokemon/{id}`, `GET /evolution-chain/{id}`, `GET /type/{name}`, `GET /ability/{name}`, `GET /pokemon/{id}/encounters`, `GET /move/{name}` |
 
 The search bar in the header jumps straight to Layer 3 from anywhere (name or National Pokédex number). Breadcrumbs link back up through the layers, and the browser Back button works because each layer has its own URL hash.
 
@@ -31,5 +31,8 @@ The search bar in the header jumps straight to Layer 3 from anywhere (name or Na
 - **Strong against** is the union of each type's `double_damage_to` list.
 - **How to evolve** turns PokéAPI's `evolution_details` (min level, item, trade, friendship, time of day, held item, known move, location, etc.) into a readable sentence.
 - **Games** combines the versions from game indices, Pokédex entries and wild encounters, since newer games aren't always in every list.
+
+- **Moves** come from the Pokémon's `moves` list, grouped by game (version group). A game picker switches between games; each move's type, category, power, accuracy and PP come from `/move/{name}`. Level "Evo" means it's learned on evolving.
+- **Shiny odds** aren't in PokéAPI, so `app.js` has a table of full-odds rates per game: 1/8192 in Gens 2–5, 1/4096 from Gen 6 on. With the Shiny Charm it's about 1/2731 in Black 2/White 2, 1/1365 in later games, and 1/1024 in Legends: Arceus.
 
 Responses are cached in memory so moving between layers doesn't re-download data.
