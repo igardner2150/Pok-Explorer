@@ -60,7 +60,8 @@ const UNLOCK = {
     "Legends: Z-A": "Mega Ring: from AZ in Jaune Sector 10, before facing the Rogue Mega Absol."
   },
   zmove: {
-    "Sun / Moon": "Z-Ring: Hala refines Tapu Koko's Sparkling Stone into a Z-Ring and gives it to you in Iki Town after your festival battle with Hau."
+    "Sun / Moon": "Z-Ring: Hala refines Tapu Koko's Sparkling Stone into a Z-Ring and gives it to you in Iki Town after your festival battle with Hau.",
+    "Ultra Sun / Ultra Moon": "Z-Power Ring: Hala refines Tapu Koko's Sparkling Stone and gives it to you in Iki Town after your festival battle with Hau."
   },
   dynamax: {
     "Sword / Shield": "Dynamax Band: from Professor Magnolia on Route 2, after you receive the Wishing Star."
@@ -123,6 +124,66 @@ const STONE_LOC = {
     gengarite: "Battle Resort (Delta Episode or later)", metagrossite: "Pokémon League, after beating Steven again (Delta Episode or later)",
     salamencite: "Meteor Falls, from the old women (Delta Episode or later)", sharpedonite: "Team Aqua's Hideout / Battle Resort grunt (Delta Episode or later)",
     diancite: "Bring a Diancie from a past event to a Pokémon Center"
+  },
+  // Source: Pokémon GO Hub (Sun / Moon Mega Stone and Z-Crystal locations). "Battle Tree" = gift or Battle Point shop at the Battle Tree on Poni Island.
+  "Sun / Moon": Object.assign(
+    Object.fromEntries(["absolite", "aerodactylite", "garchompite", "gengarite", "glalitite", "gyaradosite", "kangaskhanite", "lucarionite",
+      "metagrossite", "pinsirite", "sablenite", "salamencite", "scizorite", "sharpedonite", "slowbronite"]
+      .map(st => [st, "Battle Tree shop (Poni Island), bought with Battle Points"])),
+    { alakazite: "Ancient Poni Path, or the Battle Tree shop",
+      venusaurite: "Battle Tree (Poni Island)", blastoisinite: "Battle Tree (Poni Island)",
+      "charizardite-x": "Battle Tree (Poni Island)", "charizardite-y": "Battle Tree (Poni Island)" }),
+  // Source: Player.One (Ultra Sun / Ultra Moon Mega Stone locations).
+  "Ultra Sun / Ultra Moon": Object.assign(
+    Object.fromEntries(["audinite", "medichamite", "beedrillite", "garchompite", "cameruptite", "manectite", "houndoominite", "salamencite",
+      "metagrossite", "latiosite", "latiasite", "ampharosite", "absolite", "galladite", "gardevoirite", "glalitite", "pinsirite",
+      "kangaskhanite", "gyaradosite", "mawilite", "gengarite", "sharpedonite", "sceptilite", "blazikenite", "swampertite", "banettite",
+      "altarianite", "steelixite", "scizorite", "tyranitarite", "pidgeotite", "alakazite", "aerodactylite", "heracronite", "aggronite",
+      "mewtwonite-x", "mewtwonite-y", "slowbronite", "sablenite", "abomasite", "lucarionite"]
+      .map(st => [st, "Battle Tree shop (Poni Island), 64 Battle Points"])),
+    { venusaurite: "Battle Tree gift after beating Red or Blue", blastoisinite: "Battle Tree gift after beating Red or Blue",
+      "charizardite-x": "Battle Tree gift after beating Red or Blue", "charizardite-y": "Battle Tree gift after beating Red or Blue",
+      diancite: "Konikoni City jeweler (show them a Diancie)" }),
+  // Source: RPG Site (Let's Go Mega Stone locations).
+  "Let's Go Pikachu / Eevee": Object.assign(
+    Object.fromEntries(["beedrillite", "pidgeotite", "alakazite", "slowbronite", "gengarite", "kangaskhanite", "pinsirite", "gyaradosite", "aerodactylite"]
+      .map(st => [st, "Stone Salesman at Indigo Plateau after beating the Elite Four (₽30,000)"])),
+    Object.fromEntries(["venusaurite", "charizardite-x", "charizardite-y", "blastoisinite"].map(st => [st, "From Blue after beating the Cinnabar Gym"])),
+    { "mewtwonite-x": "From Green at Cerulean Cave", "mewtwonite-y": "From Green at Cerulean Cave" })
+};
+
+// Where to find each Z-Crystal. Sources: Gamer Guides (Ultra Sun / Ultra Moon Z-Crystals), Pokémon GO Hub (Sun / Moon).
+const Z_LOC = {
+  "Ultra Sun / Ultra Moon": {
+    "Normalium Z": "Clear Ilima's trial (Verdant Cavern)", "Fightinium Z": "Defeat Kahuna Hala", "Flyinium Z": "West side of Ten Carat Hill",
+    "Waterium Z": "Clear Lana's trial (Brooklet Hill)", "Firium Z": "Clear Kiawe's trial (Wela Volcano Park)", "Grassium Z": "Clear Mallow's trial (Lush Jungle)",
+    "Rockium Z": "Defeat Kahuna Olivia", "Steelium Z": "Gift from Molayne at Mount Hokulani", "Electrium Z": "Clear Sophocles' trial (Hokulani Observatory)",
+    "Ghostium Z": "Clear Acerola's trial (Abandoned Thrifty Megamart)", "Psychium Z": "East side of Haina Desert", "Buginium Z": "Shady House, near Guzma's throne",
+    "Darkinium Z": "Defeat Kahuna Nanu", "Poisonium Z": "Gift from Plumeria at Ancient Poni Path", "Dragonium Z": "Clear the dragon trial (Vast Poni Canyon)",
+    "Fairium Z": "Clear Mina's trial", "Groundium Z": "Defeat Kahuna Hapu", "Icium Z": "East side of Mount Lanakila",
+    "Pikanium Z": "Gift from the celebrity Pikachu at Hano Grand Resort",
+    "Decidium Z": "From Kukui at Malie Garden if Rowlet was your starter; otherwise from Hala after becoming Champion",
+    "Incinium Z": "From Kukui at Malie Garden if Litten was your starter; otherwise from Hala after becoming Champion",
+    "Primarium Z": "From Kukui at Malie Garden if Popplio was your starter; otherwise from Hala after becoming Champion",
+    "Tapunium Z": "After catching any Tapu at its ruins, post-Champion",
+    "Aloraichium Z": "Woman in Seafolk Village, with Alolan Raichu in your party",
+    "Eevium Z": "Man at the Thrifty Megamart after the Eevee side quest, post-Champion",
+    "Lycanium Z": "Defeat Hau on arriving in Malie City", "Kommonium Z": "Plains Grotto on Poni Island, post-Champion",
+    "Mimikium Z": "Abandoned Thrifty Megamart, after playing with Mimikyu at night following Nanu's trial",
+    "Lunalium Z": "Mahalo Trail after catching Lunala (Ultra Moon), or after receiving Cosmog at Lake of the Sunne (Ultra Sun)",
+    "Solganium Z": "Mahalo Trail after catching Solgaleo (Ultra Sun), or after receiving Cosmog at Lake of the Moone (Ultra Moon)",
+    "Snorlium Z": "Man on the 3rd floor of the Tide Song Hotel, after showing him a Snorlax",
+    "Mewnium Z": "Man on the 3rd floor of the Tide Song Hotel, after showing him a Mew",
+    "Marshadium Z": "Man on the 3rd floor of the Tide Song Hotel, after showing him a Marshadow",
+    "Ultranecrozium Z": "After catching Necrozma at Mount Lanakila"
+  },
+  "Sun / Moon": {
+    "Normalium Z": "Verdant Cavern", "Fightinium Z": "Iki Town", "Flyinium Z": "Ten Carat Hill", "Waterium Z": "Brooklet Hill",
+    "Firium Z": "Wela Volcano Park", "Grassium Z": "Lush Jungle", "Rockium Z": "Ruins of Life", "Steelium Z": "Hokulani Observatory",
+    "Electrium Z": "Hokulani Observatory", "Psychium Z": "Haina Desert", "Buginium Z": "Shady House", "Darkinium Z": "Malie City",
+    "Poisonium Z": "Ancient Poni Path", "Dragonium Z": "Vast Poni Canyon", "Fairium Z": "Vast Poni Canyon", "Groundium Z": "Vast Poni Canyon",
+    "Icium Z": "Mount Lanakila", "Pikanium Z": "Konikoni City", "Decidium Z": "Route 1 / Malie Garden", "Incinium Z": "Route 1 / Malie Garden",
+    "Primarium Z": "Route 1 / Malie Garden", "Tapunium Z": "Ruins of Conflict", "Aloraichium Z": "Seafolk Village", "Eevium Z": "Royal Avenue"
   }
 };
 
@@ -319,7 +380,17 @@ function whereToGet(gimmickId, games, itemSlug, itemName) {
   return `<h3>Where to get what you need</h3>
     <p class="muted">Key item: ${esc(g.keyItem)} · Held item: ${esc(g.held)}</p>
     <div class="table-wrap"><table class="data-table wrap"><thead><tr><th>Game</th><th>Key item</th>${showItem ? `<th>${esc(itemName || "Mega Stone")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>
-    ${showItem ? '<p class="note muted">Stone locations for Sun / Moon, Ultra Sun / Ultra Moon, Let\'s Go and Legends: Z-A aren\'t listed yet.</p>' : ""}`;
+    ${showItem ? '<p class="note muted">Mega Stone locations for Legends: Z-A aren\'t listed yet.</p>' : ""}`;
+}
+
+// Where to find each Z-Crystal this Pokémon can use, in each game it's in.
+function zCrystalTable(crystals, games) {
+  const missing = '<span class="muted">Not listed yet</span>';
+  return `<h3>Where to find its Z-Crystals</h3>
+    <div class="table-wrap"><table class="data-table wrap">
+      <thead><tr><th>Z-Crystal</th>${games.map(g => `<th>${esc(g)}</th>`).join("")}</tr></thead>
+      <tbody>${crystals.map(c => `<tr><td><strong>${esc(c)}</strong></td>${games.map(g => `<td>${Z_LOC[g]?.[c] ? esc(Z_LOC[g][c]) : missing}</td>`).join("")}</tr>`).join("")}</tbody>
+    </table></div>`;
 }
 
 function statCompare(base, form) {
@@ -569,6 +640,7 @@ async function renderGimmicks(query) {
       <ul class="plain">${types.map(t => `<li>${typeBadge(t)} <strong>${Z_TYPE[t][0]}</strong> turns any damaging ${title(t)} move into <strong>${Z_TYPE[t][1]}</strong>.</li>`).join("")}</ul>
       <p class="note muted">Stats: unchanged. Any type's Z-Crystal works on a matching move, not just its own types.</p>
       ${table}
+      ${zCrystalTable([...new Set([...exclusive.map(([c]) => c), ...types.map(t => Z_TYPE[t][0])])], games)}
       ${whereToGet("zmove", games)}`));
   } else notAvailable.push("Z-Moves (not in Sun / Moon or Ultra Sun / Ultra Moon)");
 
