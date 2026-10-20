@@ -26,6 +26,33 @@ const DEF_ITEMS = {
   eviolite: ["Eviolite (Def and Sp. Def ×1.5)"]
 };
 
+/* Abilities the calculator models. Each Pokémon's ability list comes from PokéAPI; anything not here is shown
+   as "not modeled" and has no effect. */
+const ATK_ABILITY = {
+  "huge-power": "Doubles Attack", "pure-power": "Doubles Attack", "hustle": "Attack ×1.5", "gorilla-tactics": "Attack ×1.5",
+  "guts": "Attack ×1.5 when statused; ignores burn", "solar-power": "Sp. Atk ×1.5 in sun",
+  "blaze": "Fire moves ×1.5 at low HP", "torrent": "Water moves ×1.5 at low HP", "overgrow": "Grass moves ×1.5 at low HP", "swarm": "Bug moves ×1.5 at low HP",
+  "technician": "Moves with 60 power or less ×1.5", "adaptability": "STAB is ×2", "sniper": "Critical hits ×2.25",
+  "tinted-lens": "Not-very-effective hits ×2", "steelworker": "Steel moves ×1.5", "dragons-maw": "Dragon moves ×1.5",
+  "transistor": "Electric moves ×1.3", "water-bubble": "Water moves ×2",
+  "aerilate": "Normal moves become Flying ×1.2", "pixilate": "Normal moves become Fairy ×1.2",
+  "refrigerate": "Normal moves become Ice ×1.2", "galvanize": "Normal moves become Electric ×1.2",
+  "mold-breaker": "Ignores the target's ability", "teravolt": "Ignores the target's ability", "turboblaze": "Ignores the target's ability"
+};
+const DEF_ABILITY = {
+  "levitate": "Immune to Ground", "earth-eater": "Immune to Ground", "flash-fire": "Immune to Fire", "well-baked-body": "Immune to Fire",
+  "water-absorb": "Immune to Water", "storm-drain": "Immune to Water", "dry-skin": "Immune to Water",
+  "volt-absorb": "Immune to Electric", "lightning-rod": "Immune to Electric", "motor-drive": "Immune to Electric", "sap-sipper": "Immune to Grass",
+  "wonder-guard": "Only super-effective hits land", "thick-fat": "Fire and Ice damage halved", "heatproof": "Fire damage halved",
+  "multiscale": "Damage halved at full HP", "shadow-shield": "Damage halved at full HP",
+  "filter": "Super-effective damage ×0.75", "solid-rock": "Super-effective damage ×0.75", "prism-armor": "Super-effective damage ×0.75",
+  "fur-coat": "Defense doubled", "ice-scales": "Special damage halved"
+};
+const ABILITY_IMMUNE = { levitate: "ground", "earth-eater": "ground", "flash-fire": "fire", "well-baked-body": "fire", "water-absorb": "water",
+  "storm-drain": "water", "dry-skin": "water", "volt-absorb": "electric", "lightning-rod": "electric", "motor-drive": "electric", "sap-sipper": "grass" };
+const PINCH = { blaze: "fire", torrent: "water", overgrow: "grass", swarm: "bug" };
+const ATE = { aerilate: "flying", pixilate: "fairy", refrigerate: "ice", galvanize: "electric" };
+
 /*
  * Returns the 16 possible damage values (random factor 85–100%) plus the numbers behind them.
  * a = attacker, d = defender: { stats (final, before stages), types, level, stage, item, tera }
@@ -34,9 +61,15 @@ function damageRolls({ a, d, move, crit, weather, burned, screen, spread }) {
   const physical = move.category === "physical";
   const atkKey = physical ? "attack" : "special-attack";
   const defKey = physical ? "defense" : "special-defense";
+  const aAb = a.ability || "", dAb = ["mold-breaker", "teravolt", "turboblaze"].includes(aAb) ? "" : (d.ability || "");
 
+  // -ate abilities turn Normal moves into another type with a power boost.
+  let moveType = move.type;
   let power = move.power;
+  if (ATE[aAb] && moveType === "normal") { moveType = ATE[aAb]; power = Math.floor(power * 1.2); }
+  if (aAb === "technician" && power <= 60) power = Math.floor(power * 1.5);
   if (a.item === "typeboost") power = Math.floor(power * 1.2);
+  move = { ...move, type: moveType };
 
   // Critical hits ignore the attacker's stat drops and the defender's stat boosts.
   const aStage = crit ? Math.max(0, a.stage) : a.stage;
@@ -44,7 +77,17 @@ function damageRolls({ a, d, move, crit, weather, burned, screen, spread }) {
   let A = Math.floor(a.stats[atkKey] * stageMult(aStage));
   let D = Math.floor(d.stats[defKey] * stageMult(dStage));
   if ((a.item === "band" && physical) || (a.item === "specs" && !physical)) A = Math.floor(A * 1.5);
+  if (physical && (aAb === "huge-power" || aAb === "pure-power")) A *= 2;
+  if (physical && (aAb === "hustle" || aAb === "gorilla-tactics" || (aAb === "guts" && burned))) A = Math.floor(A * 1.5);
+  if (!physical && aAb === "solar-power" && weather === "sun") A = Math.floor(A * 1.5);
+  if (PINCH[aAb] === move.type && a.pinch) A = Math.floor(A * 1.5);
+  if ((aAb === "steelworker" && move.type === "steel") || (aAb === "dragons-maw" && move.type === "dragon")) A = Math.floor(A * 1.5);
+  if (aAb === "transistor" && move.type === "electric") A = Math.floor(A * 1.3);
+  if (aAb === "water-bubble" && move.type === "water") A *= 2;
+  if (dAb === "thick-fat" && (move.type === "fire" || move.type === "ice")) A = Math.floor(A * 0.5);
+  if (dAb === "heatproof" && move.type === "fire") A = Math.floor(A * 0.5);
   if ((d.item === "vest" && !physical) || d.item === "eviolite") D = Math.floor(D * 1.5);
+  if (dAb === "fur-coat" && physical) D *= 2;
 
   const base = Math.floor(Math.floor(Math.floor(2 * a.level / 5 + 2) * power * A / D) / 50) + 2;
 
@@ -54,9 +97,12 @@ function damageRolls({ a, d, move, crit, weather, burned, screen, spread }) {
     if (move.type === a.tera) stab = a.types.includes(a.tera) ? 2 : 1.5;
     else if (a.types.includes(move.type)) stab = 1.5;
   } else if (a.types.includes(move.type)) stab = 1.5;
+  if (aAb === "adaptability" && stab === 1.5) stab = 2;
 
   const defTypes = d.tera ? [d.tera] : d.types;
-  const eff = effectiveness(d.typeData, move.type, defTypes);
+  let eff = effectiveness(d.typeData, move.type, defTypes);
+  if (ABILITY_IMMUNE[dAb] === move.type) eff = 0;
+  if (dAb === "wonder-guard" && eff <= 1) eff = 0;
 
   let weatherMult = 1;
   if (weather === "sun") weatherMult = move.type === "fire" ? 1.5 : move.type === "water" ? 0.5 : 1;
@@ -67,17 +113,21 @@ function damageRolls({ a, d, move, crit, weather, burned, screen, spread }) {
     let dmg = base;
     if (spread) dmg = pokeRound(dmg * 0.75);
     if (weatherMult !== 1) dmg = pokeRound(dmg * weatherMult);
-    if (crit) dmg = Math.floor(dmg * 1.5);
+    if (crit) dmg = Math.floor(dmg * (aAb === "sniper" ? 2.25 : 1.5));
     dmg = Math.floor(dmg * r / 100);
     if (stab !== 1) dmg = pokeRound(dmg * stab);
     dmg = Math.floor(dmg * eff);
-    if (burned && physical && move.name !== "facade") dmg = pokeRound(dmg * 0.5);
+    if (burned && physical && move.name !== "facade" && aAb !== "guts") dmg = pokeRound(dmg * 0.5);
+    if (aAb === "tinted-lens" && eff > 0 && eff < 1) dmg = pokeRound(dmg * 2);
+    if ((dAb === "multiscale" || dAb === "shadow-shield") && d.fullHp !== false) dmg = pokeRound(dmg * 0.5);
+    if (["filter", "solid-rock", "prism-armor"].includes(dAb) && eff > 1) dmg = pokeRound(dmg * 0.75);
+    if (dAb === "ice-scales" && !physical) dmg = pokeRound(dmg * 0.5);
     if (screen && !crit) dmg = pokeRound(dmg * 0.5);
     if (a.item === "orb") dmg = pokeRound(dmg * 1.3);
     if (a.item === "belt" && eff > 1) dmg = pokeRound(dmg * 1.2);
     rolls.push(eff === 0 ? 0 : Math.max(1, dmg));
   }
-  return { rolls, base, A, D, stab, eff, power };
+  return { rolls, base, A, D, stab, eff, power, moveType };
 }
 
 // Chance that n hits knock out `hp`, using every combination of rolls (exact for n ≤ 3).
@@ -109,8 +159,8 @@ function koText(rolls, hp) {
 /* ---------- Page ---------- */
 
 let dmgState = {
-  atk: { mon: "garchomp", level: 50, nature: "jolly", ev: 252, stage: 0, item: "none", tera: "", burned: false },
-  def: { mon: "dragonite", level: 50, nature: "careful", hpEv: 4, ev: 252, stage: 0, item: "none", tera: "" },
+  atk: { mon: "garchomp", level: 50, nature: "jolly", ev: 252, stage: 0, item: "none", tera: "", burned: false, ability: "", pinch: false },
+  def: { mon: "dragonite", level: 50, nature: "careful", hpEv: 4, ev: 252, stage: 0, item: "none", tera: "", ability: "" },
   move: "dragon-claw", crit: false, weather: "none", screen: false, spread: false
 };
 
@@ -147,6 +197,8 @@ async function renderDamage() {
           <div class="field"><label for="atk-stage">Stat stage</label><select id="atk-stage">${stageOpts(st.atk.stage)}</select></div>
         </div>
         <div class="field wide"><label for="atk-nature">Nature</label><select id="atk-nature">${natureOpts(st.atk.nature)}</select></div>
+        <div class="field wide"><label for="atk-ability">Ability</label><select id="atk-ability"></select></div>
+        <label class="check" id="atk-pinch-row" hidden><input type="checkbox" id="atk-pinch" ${st.atk.pinch ? "checked" : ""}> HP is at 1/3 or below</label>
         <div class="field wide"><label for="atk-item">Item</label><select id="atk-item">${itemOpts(ATK_ITEMS, st.atk.item)}</select></div>
         <div class="field wide"><label for="atk-tera">Terastallization</label><select id="atk-tera">${teraOpts(st.atk.tera)}</select></div>
         <label class="check"><input type="checkbox" id="atk-burned" ${st.atk.burned ? "checked" : ""}> Burned (halves physical damage)</label>
@@ -180,12 +232,13 @@ async function renderDamage() {
           <div class="field"><label for="def-stage">Stat stage</label><select id="def-stage">${stageOpts(st.def.stage)}</select></div>
         </div>
         <div class="field wide"><label for="def-nature">Nature</label><select id="def-nature">${natureOpts(st.def.nature)}</select></div>
+        <div class="field wide"><label for="def-ability">Ability</label><select id="def-ability"></select></div>
         <div class="field wide"><label for="def-item">Item</label><select id="def-item">${itemOpts(DEF_ITEMS, st.def.item)}</select></div>
         <div class="field wide"><label for="def-tera">Terastallization</label><select id="def-tera">${teraOpts(st.def.tera)}</select></div>
         <p class="muted small" id="def-stat"></p>
       </section>
     </div>
-    <p class="note muted">Uses the Generation 5+ damage formula with all IVs at 31. Abilities, other items and field effects aren't included, so results for those cases may differ slightly from the game.</p>`;
+    <p class="note muted">Uses the Generation 5+ damage formula with all IVs at 31. Common damage-changing abilities are modeled; abilities marked "not modeled", other items and field effects aren't included. For Intimidate, set the attacker's stat stage to −1.</p>`;
 
   const $ = id => document.getElementById(id);
   let atk = null, def = null, move = null, timer;
@@ -199,7 +252,13 @@ async function renderDamage() {
       $(`${side}-img`).alt = monLabel(species, mon);
       $(`${side}-types`).innerHTML = mon.types.map(t => typeBadge(t.type.name)).join("");
       input.classList.remove("invalid");
-      if (side === "atk") $("atk-moves").innerHTML = mon.moves.map(m => `<option value="${m.move.name}">${esc(title(m.move.name))}</option>`).join("");
+      if (side === "atk") $("atk-moves").innerHTML = mon.moves.map(m => `<option value="${m.move.name}">${esc(moveName(m.move.name))}</option>`).join("");
+      const modeled = side === "atk" ? ATK_ABILITY : DEF_ABILITY;
+      const abilities = mon.abilities.map(a => a.ability.name);
+      const keep = abilities.includes(st[side].ability) ? st[side].ability : (abilities.find(a => modeled[a]) || abilities[0] || "");
+      $(`${side}-ability`).innerHTML = abilities.map(a => `<option value="${a}" ${a === keep ? "selected" : ""}>${esc(title(a))}${modeled[a] ? ` · ${esc(modeled[a])}` : " · not modeled"}</option>`).join("")
+        || `<option value="">None</option>`;
+      st[side].ability = keep;
       return { species, mon, base: baseStats(mon), types: mon.types.map(t => t.type.name), label: monLabel(species, mon) };
     } catch {
       input.classList.add("invalid");
@@ -225,9 +284,11 @@ async function renderDamage() {
 
   function calc() {
     Object.assign(st.atk, { mon: cleanQuery($("atk-mon").value), level: num("atk-level", 1, 100), ev: num("atk-ev", 0, 252),
-      stage: Number($("atk-stage").value), nature: $("atk-nature").value, item: $("atk-item").value, tera: $("atk-tera").value, burned: $("atk-burned").checked });
+      stage: Number($("atk-stage").value), nature: $("atk-nature").value, item: $("atk-item").value, tera: $("atk-tera").value, burned: $("atk-burned").checked,
+      ability: $("atk-ability").value, pinch: $("atk-pinch").checked });
     Object.assign(st.def, { mon: cleanQuery($("def-mon").value), level: num("def-level", 1, 100), hpEv: num("def-hpev", 0, 252), ev: num("def-ev", 0, 252),
-      stage: Number($("def-stage").value), nature: $("def-nature").value, item: $("def-item").value, tera: $("def-tera").value });
+      stage: Number($("def-stage").value), nature: $("def-nature").value, item: $("def-item").value, tera: $("def-tera").value, ability: $("def-ability").value });
+    $("atk-pinch-row").hidden = !PINCH[st.atk.ability];
     Object.assign(st, { move: cleanQuery($("dmg-move").value), crit: $("dmg-crit").checked, weather: $("dmg-weather").value,
       screen: $("dmg-screen").checked, spread: $("dmg-spread").checked });
 
@@ -247,8 +308,8 @@ async function renderDamage() {
     $("def-stat").textContent = `HP: ${hp} · ${STAT_LABEL[defKey]} stat: ${dStats[defKey]}`;
 
     const res = damageRolls({
-      a: { stats: aStats, types: atk.types, level: st.atk.level, stage: st.atk.stage, item: st.atk.item, tera: st.atk.tera },
-      d: { stats: dStats, types: def.types, stage: st.def.stage, item: st.def.item, tera: st.def.tera, typeData },
+      a: { stats: aStats, types: atk.types, level: st.atk.level, stage: st.atk.stage, item: st.atk.item, tera: st.atk.tera, ability: st.atk.ability, pinch: st.atk.pinch },
+      d: { stats: dStats, types: def.types, stage: st.def.stage, item: st.def.item, tera: st.def.tera, ability: st.def.ability, typeData },
       move, crit: st.crit, weather: st.weather, burned: st.atk.burned, screen: st.screen, spread: st.spread
     });
     const min = res.rolls[0], max = res.rolls[15];
@@ -267,7 +328,7 @@ async function renderDamage() {
         <span class="hp-min" style="width:${Math.min(100, min / hp * 100)}%"></span>
         <span class="hp-max" style="left:${Math.min(100, min / hp * 100)}%;width:${Math.max(0, Math.min(100, max / hp * 100) - Math.min(100, min / hp * 100))}%"></span>
       </div>
-      <p class="muted small">${esc(effWord)}${res.stab !== 1 ? ` · STAB ×${res.stab}` : ""}${st.crit ? " · critical hit" : ""} · power ${res.power} · base damage ${res.base}</p>
+      <p class="muted small">${esc(effWord)}${res.moveType !== move.type ? ` · becomes ${esc(title(res.moveType))}-type` : ""}${res.eff === 0 && ABILITY_IMMUNE[st.def.ability] === res.moveType ? ` · blocked by ${esc(title(st.def.ability))}` : ""}${res.stab !== 1 ? ` · STAB ×${res.stab}` : ""}${st.crit ? " · critical hit" : ""} · power ${res.power} · base damage ${res.base}</p>
       <details class="rolls"><summary>All 16 damage rolls</summary><p class="mono">${res.rolls.join(", ")}</p></details>`;
   }
 
@@ -305,7 +366,7 @@ const ITEM_SPRITE = name => `${SPRITE_BASE.replace("/pokemon", "")}/items/${name
 let itemsView = { pocket: "misc", category: "held-items" };
 
 async function renderItems(body, itemName) {
-  fillDatalist("item-list", "/item?limit=3000");
+  fillDatalist("item-list", "/item?limit=3000", itemName);
   body.innerHTML = `
     <form class="compare-form" id="item-form">
       <label for="item-q" class="visually-hidden">Item</label>
@@ -356,7 +417,7 @@ async function renderItemBrowser(out) {
       <div class="item-grid">${items.map(n => `
         <a class="item-card" href="#tools/items/${n}">
           <img src="${ITEM_SPRITE(n)}" alt="" loading="lazy" width="48" height="48" onerror="this.style.visibility='hidden'">
-          <span>${esc(title(n))}</span>
+          <span>${esc(itemName(n))}</span>
         </a>`).join("")}</div>` : `<p class="muted">No items in this category.</p>`;
   }
 
@@ -368,7 +429,7 @@ async function renderItemDetail(out, name) {
   let item;
   try { item = await get(`/item/${name}`); }
   catch { out.innerHTML = `<p class="error">No item called “${esc(name)}”. Use hyphens for spaces, e.g. choice-scarf.</p>`; return; }
-  const label = english(item.names) || title(item.name);
+  const label = english(item.names) || itemName(item.name);
   setCrumbs([{ label: "Tools", href: "#tools" }, { label: "Items", href: "#tools/items" }, { label }]);
   const effect = englishEffect(item);
   const flavor = [...(item.flavor_text_entries || [])].reverse().find(f => f.language.name === "en")?.text?.replace(/\s+/g, " ");
