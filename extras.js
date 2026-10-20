@@ -23,12 +23,14 @@ function effectiveness(td, atk, defTypes) {
 const multText = m => m === 0 ? "0" : m === 0.25 ? "¼" : m === 0.5 ? "½" : m === 1 ? "" : `${m}`;
 const multClass = m => m === 0 ? "m0" : m < 1 ? (m === 0.25 ? "m025" : "m05") : m === 1 ? "m1" : m === 2 ? "m2" : "m4";
 
-const cleanQuery = v => v.trim().toLowerCase().replace(/^#?0*(?=\d)/, "").replace(/[.']/g, "").replace(/\s+/g, "-");
+// Turns what people type ("Mr. Mime", "Farfetch'd", "Nidoran♀", "#025") into a PokéAPI id.
+const cleanQuery = v => v.trim().toLowerCase().replace(/^#?0*(?=\d)/, "").replace(/[.':]/g, "")
+  .replace(/♀/g, "-f").replace(/♂/g, "-m").replace(/é/g, "e").replace(/\s+/g, "-").replace(/-+/g, "-");
 
 function monLabel(species, mon) {
   const isDefault = species.varieties.find(v => v.is_default)?.pokemon.name === mon.name;
   if (isDefault) return english(species.names) || title(species.name);
-  return regionalInfo(mon.name)?.label || (typeof gimmickLabel === "function" ? gimmickLabel(mon.name) : title(mon.name));
+  return pokeName(mon.name);
 }
 
 const artOf = mon => mon.sprites.other?.["official-artwork"]?.front_default || mon.sprites.other?.home?.front_default || mon.sprites.front_default || "";
@@ -42,14 +44,50 @@ function loadTeam() {
 }
 function saveTeam(team) { try { localStorage.setItem(TEAM_KEY, JSON.stringify(team)); } catch {} }
 
-async function renderTeam() {
-  setCrumbs([{ label: "Team builder" }]);
-  const team = loadTeam();
+// A shared team arrives as #team/garchomp,rotom-wash,… and is shown without touching the viewer's own saved team.
+async function renderTeam(shared) {
+  setCrumbs([{ label: "Battle", href: "#gimmicks" }, { label: shared ? "Shared team" : "Team builder" }]);
+  const sharedList = shared ? shared.split(",").map(cleanQuery).filter(Boolean).slice(0, 6) : null;
+  const team = sharedList ? [...sharedList, "", "", "", "", "", ""].slice(0, 6) : loadTeam();
+  const filledNames = team.filter(Boolean);
   view.innerHTML = `
-    <h1>Team builder</h1>
-    <p class="lede">Pick up to six Pokémon (regional forms work too, e.g. ninetales-alola). The charts show which attacking types your team struggles against and which types your team's STAB moves can't hit hard. Your team is saved in this browser.</p>
-    <div class="team-slots" id="team-slots">${team.map((_, i) => `<div class="team-slot" data-slot="${i}"><p class="status">Loading…</p></div>`).join("")}</div>
+    <div class="page-head">
+      <div>
+        <h1>${sharedList ? "Shared team" : "Team builder"}</h1>
+        <p class="lede">${sharedList
+          ? "Someone shared this team with you. Save it to make it your own and edit it."
+          : "Pick up to six Pokémon (regional forms work too, e.g. ninetales-alola). The charts show which attacking types your team struggles against and which types your STAB moves can't hit hard."}</p>
+      </div>
+      <div class="page-actions">
+        ${sharedList ? `<button type="button" class="btn" id="team-save">Save as my team</button>` : ""}
+        ${filledNames.length ? `<button type="button" class="btn ghost" id="team-share">Share this team</button>` : ""}
+      </div>
+    </div>
+    <div class="share-box" id="share-box" hidden>
+      <label for="share-link">Link to this team</label>
+      <div class="share-row"><input id="share-link" type="text" readonly><button type="button" class="btn" id="share-copy">Copy</button></div>
+      <p class="muted small" id="share-note">Anyone with this link sees the same six Pokémon.</p>
+    </div>
+    <div class="team-slots" id="team-slots">${team.map((_, i) => `<div class="team-slot skeleton-slot" data-slot="${i}"></div>`).join("")}</div>
     <div id="team-analysis"></div>`;
+
+  const saveBtn = document.getElementById("team-save");
+  if (saveBtn) saveBtn.addEventListener("click", () => { saveTeam(team); location.hash = "team"; });
+  const shareBtn = document.getElementById("team-share");
+  if (shareBtn) shareBtn.addEventListener("click", () => {
+    const link = `${location.origin}${location.pathname}#team/${filledNames.join(",")}`;
+    const box = document.getElementById("share-box"), input = document.getElementById("share-link");
+    box.hidden = false;
+    input.value = link;
+    input.focus();
+    input.select();
+  });
+  const copyBtn = document.getElementById("share-copy");
+  copyBtn.addEventListener("click", async () => {
+    const input = document.getElementById("share-link");
+    try { await navigator.clipboard.writeText(input.value); document.getElementById("share-note").textContent = "Copied! Paste it anywhere to share."; }
+    catch { input.select(); document.getElementById("share-note").textContent = "Press Ctrl+C (or ⌘C) to copy the selected link."; }
+  });
 
   const td = await allTypeData();
   const members = await Promise.all(team.map(async name => {
@@ -60,6 +98,7 @@ async function renderTeam() {
 
   const slotsEl = document.getElementById("team-slots");
   slotsEl.innerHTML = members.map((m, i) => {
+    if (!m && sharedList) return `<div class="team-slot empty" data-slot="${i}"><span class="slot-num">Slot ${i + 1}</span><p class="muted">Empty</p></div>`;
     if (!m) return `
       <form class="team-slot empty" data-slot="${i}">
         <span class="slot-num">Slot ${i + 1}</span>
@@ -79,7 +118,7 @@ async function renderTeam() {
         <img src="${artOf(m.mon)}" alt="">
         <a href="#pokemon/${m.mon.name}"><strong>${esc(monLabel(m.species, m.mon))}</strong></a>
         <div class="types">${m.types.map(t => typeBadge(t)).join("")}</div>
-        <button type="button" class="remove" data-remove="${i}">Remove</button>
+        ${sharedList ? "" : `<button type="button" class="remove" data-remove="${i}">Remove</button>`}
       </div>`;
   }).join("");
 
@@ -148,7 +187,7 @@ async function renderTeam() {
         <p class="muted">For each defending type, which of your Pokémon can hit it super effectively with a move of its own type.</p>
         <div class="table-wrap"><table class="data-table wrap">
           <thead><tr><th>Defending type</th><th>Best</th><th>Who hits it super effectively</th></tr></thead>
-          <tbody>${offense.map(o => `<tr><td>${typeBadge(o.def)}</td><td class="${multClass(o.best)}">×${multText(o.best) || "1"}</td>
+          <tbody>${offense.map(o => `<tr><td>${typeBadge(o.def)}</td><td class="${o.best > 1 ? "good-cell" : o.best < 1 ? "m2" : ""}">×${multText(o.best) || "1"}</td>
             <td>${o.hitters.length ? o.hitters.map(m => esc(monLabel(m.species, m.mon))).join(", ") : '<span class="muted">Nobody</span>'}</td></tr>`).join("")}</tbody>
         </table></div>
       </section>
@@ -157,16 +196,28 @@ async function renderTeam() {
 
 /* ---------- Tools tab ---------- */
 
+const TOOL_INTRO = {
+  compare: "Put two Pokémon side by side: stats, types, abilities and who hits whom harder.",
+  typechart: "Every type matchup in one chart, plus a calculator for dual types.",
+  search: "Find Pokémon by type, generation and minimum stats.",
+  stats: "Work out a Pokémon's exact stats from its level, IVs, EVs and nature, and learn how each one works.",
+  abilities: "Look up any ability and every Pokémon that can have it.",
+  moves: "Look up any move and every Pokémon that can learn it.",
+  items: "Browse every item by bag pocket and category, or look one up directly.",
+  breeding: "Egg groups, compatible partners and what hatches, plus how breeding works.",
+  quiz: "Name the Pokémon from its silhouette. How long can you keep your streak going?"
+};
 const TOOLS = [["compare", "Compare"], ["typechart", "Type chart"], ["search", "Advanced search"], ["stats", "Stat calculator"],
-  ["abilities", "Abilities"], ["moves", "Moves"], ["breeding", "Breeding"], ["quiz", "Who's That Pokémon?"]];
+  ["abilities", "Abilities"], ["moves", "Moves"], ["items", "Items"], ["breeding", "Breeding"], ["quiz", "Who's That Pokémon?"]];
 
 async function renderTools(tool, rest = []) {
   tool = TOOLS.some(([id]) => id === tool) ? tool : "compare";
-  setCrumbs([{ label: "Tools", href: "#tools" }, { label: TOOLS.find(([id]) => id === tool)[1] }]);
+  const label = TOOLS.find(([id]) => id === tool)[1];
+  setCrumbs([{ label: "Tools", href: "#tools" }, { label }]);
   view.innerHTML = `
-    <h1>Tools</h1>
-    <div class="sub-tabs">${TOOLS.map(([id, label]) => `<a class="sub-tab${id === tool ? " active" : ""}" href="#tools/${id}">${label}</a>`).join("")}</div>
-    <div id="tool-body"><p class="status">Loading…</p></div>`;
+    <h1>${esc(label)}</h1>
+    <p class="lede">${esc(TOOL_INTRO[tool] || "")}</p>
+    <div id="tool-body">${loadingBlock()}</div>`;
   const body = document.getElementById("tool-body");
   if (tool === "compare") await renderCompare(body, rest[0], rest[1]);
   else if (tool === "typechart") await renderTypeChart(body);
@@ -175,6 +226,7 @@ async function renderTools(tool, rest = []) {
   else if (tool === "abilities") await renderAbilitySearch(body, rest[0]);
   else if (tool === "moves") await renderMoveSearch(body, rest[0]);
   else if (tool === "breeding") await renderBreeding(body, rest[0]);
+  else if (tool === "items") await renderItems(body, rest[0]);
   else await renderQuiz(body);
 }
 
@@ -364,7 +416,7 @@ async function runSearch(out) {
       <a class="mon-card" href="#pokemon/${r.name}">
         ${spriteImg(r.id)}
         <span class="num">${r.id <= 1025 ? pad(r.id) : "Form"}</span>
-        <span class="name">${esc(regionalInfo(r.name)?.label || (typeof gimmickLabel === "function" ? gimmickLabel(r.name) : title(r.name)))}</span>
+        <span class="name">${esc(pokeName(r.name))}</span>
         ${r.stats && (st.stat || st.sort !== "id") ? `<span class="num">${esc(STAT_LABEL[st.sort !== "id" ? st.sort : st.stat] || "Total")} ${r.stats[st.sort !== "id" ? st.sort : st.stat]}</span>` : ""}
         ${r.id <= 1025 ? trackBadges(r.id) : ""}
       </a>`).join("")}</div>`
@@ -419,7 +471,7 @@ async function renderQuiz(body) {
     document.getElementById("q-result").textContent = "";
     document.getElementById("q-next").hidden = true;
     const opts = document.getElementById("q-options");
-    opts.innerHTML = choices.map(c => `<button type="button" class="quiz-option" data-id="${c.id}">${esc(title(c.name))}</button>`).join("");
+    opts.innerHTML = choices.map(c => `<button type="button" class="quiz-option" data-id="${c.id}">${esc(pokeName(c.name))}</button>`).join("");
     opts.querySelectorAll("button").forEach(b => b.addEventListener("click", () => choose(Number(b.dataset.id))));
     audio = null;
     get(`/pokemon/${pick.id}`).then(mon => { if (answer === pick) audio = mon.cries?.latest || mon.cries?.legacy; }).catch(() => {});
@@ -438,8 +490,8 @@ async function renderQuiz(body) {
     document.getElementById("q-streak").textContent = quiz.streak;
     document.getElementById("q-best").textContent = best;
     document.getElementById("q-result").innerHTML = right
-      ? `Correct! It's <a href="#pokemon/${answer.name}">${esc(title(answer.name))}</a>.`
-      : `It's <a href="#pokemon/${answer.name}">${esc(title(answer.name))}</a>. Streak reset.`;
+      ? `Correct! It's <a href="#pokemon/${answer.name}">${esc(pokeName(answer.name))}</a>.`
+      : `It's <a href="#pokemon/${answer.name}">${esc(pokeName(answer.name))}</a>. Streak reset.`;
     document.getElementById("q-next").hidden = false;
     document.getElementById("q-next").focus();
   }
@@ -463,7 +515,7 @@ window.renderHomeExtras = async box => {
   if (!box) return;
   const id = pokemonOfTheDayId();
   box.innerHTML = `
-    <div class="potd panel">
+    <div class="potd">
       <div class="potd-art"><img src="${OFFICIAL_ART(id)}" alt=""></div>
       <div class="potd-text">
         <div class="dex-no">Pokémon of the day · ${pad(id)}</div>
