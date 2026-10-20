@@ -310,34 +310,55 @@ const formCard = f => `
     <span class="name">${esc(f.label)}</span>
   </a>`;
 
-async function renderRegionalForms() {
+// Layer 1 of the Regional forms tab: one card per region. Layer 2: that region's forms.
+const FORM_REGION_ICON = { alola: "vulpix-alola", galar: "ponyta-galar", hisui: "growlithe-hisui", paldea: "wooper-paldea" };
+
+async function renderRegionalForms(region) {
+  if (region) return renderFormRegion(region);
   setCrumbs([{ label: "Regional forms" }]);
   view.innerHTML = `<p class="status">Loading regional forms…</p>`;
   const forms = await regionalForms();
-  const regions = Object.keys(REGIONAL);
+
   view.innerHTML = `
     <h1>Regional forms</h1>
-    <p class="lede">Some Pokémon adapted to a new region and changed their typing, stats, abilities and look. ${forms.length} regional forms across ${regions.length} regions.</p>
+    <p class="lede">Some Pokémon adapted to a new region and changed their typing, stats, abilities and look. Pick a region to see the forms that live there.</p>
+    <div class="region-grid">
+      ${Object.keys(REGIONAL).map(r => {
+        const list = forms.filter(f => f.region === r);
+        if (!list.length) return "";
+        const icon = list.find(f => f.name === FORM_REGION_ICON[r]) || list[0];
+        return `
+          <a class="region-card" href="#forms/${r}">
+            <div><div class="gen">${list.length} ${REGIONAL[r]} form${list.length > 1 ? "s" : ""}</div><h3>${esc(title(r))}</h3></div>
+            ${spriteImg(icon.id, 84)}
+          </a>`;
+      }).join("")}
+    </div>`;
+}
+
+async function renderFormRegion(region) {
+  if (!REGIONAL[region]) throw new Error("not-found");
+  setCrumbs([{ label: "Regional forms", href: "#forms" }, { label: title(region) }]);
+  view.innerHTML = `<p class="status">Loading ${REGIONAL[region]} forms…</p>`;
+  const forms = await regionalForms(region);
+
+  view.innerHTML = `
+    <h1>${REGIONAL[region]} forms</h1>
+    <p class="lede">Pokémon that look and battle differently in ${esc(title(region))}. Select one for its full profile, or <a class="text-link" href="#region/${region}">see every Pokémon from ${esc(title(region))}</a>.</p>
     <div class="list-tools">
-      <label class="visually-hidden" for="form-filter">Filter regional forms</label>
+      <label class="visually-hidden" for="form-filter">Filter ${REGIONAL[region]} forms</label>
       <input id="form-filter" type="search" placeholder="Filter by name…" autocomplete="off">
+      <span class="count" id="count">${forms.length} forms</span>
     </div>
-    ${regions.map(r => {
-      const list = forms.filter(f => f.region === r);
-      return list.length ? `
-        <section class="form-group">
-          <h2>${REGIONAL[r]} forms <span class="muted">(${list.length})</span> <a class="text-link" href="#region/${r}">${title(r)} region →</a></h2>
-          <div class="mon-grid">${list.map(formCard).join("")}</div>
-        </section>` : "";
-    }).join("")}`;
+    <div class="mon-grid">${forms.map(formCard).join("")}</div>`;
+
   const filter = document.getElementById("form-filter");
+  const cards = [...view.querySelectorAll(".mon-card")];
   filter.addEventListener("input", () => {
     const q = filter.value.trim().toLowerCase();
-    view.querySelectorAll(".form-group").forEach(g => {
-      let shown = 0;
-      g.querySelectorAll(".mon-card").forEach(c => { const hit = !q || c.dataset.key.includes(q); c.hidden = !hit; if (hit) shown++; });
-      g.hidden = !shown;
-    });
+    let shown = 0;
+    cards.forEach(c => { const hit = !q || c.dataset.key.includes(q); c.hidden = !hit; if (hit) shown++; });
+    document.getElementById("count").textContent = q ? `${shown} of ${cards.length} forms` : `${cards.length} forms`;
   });
 }
 
@@ -504,8 +525,10 @@ async function renderPokemon(query) {
   const originRegion = regionalInfo(mon.name)?.region || GEN_REGION[species.generation.name];
 
   setCrumbs([
-    { label: "Regions", href: "#" },
-    originRegion ? { label: title(originRegion), href: `#region/${originRegion}` } : { label: genLabel(species.generation.name) },
+    ...(regionalInfo(mon.name)
+      ? [{ label: "Regional forms", href: "#forms" }, { label: title(originRegion), href: `#forms/${originRegion}` }]
+      : [{ label: "Regions", href: "#" },
+         originRegion ? { label: title(originRegion), href: `#region/${originRegion}` } : { label: genLabel(species.generation.name) }]),
     { label: displayName }
   ]);
 
@@ -837,7 +860,7 @@ async function route() {
     if (page === "region" && param) await renderRegion(param);
     else if (page === "pokemon" && param) await renderPokemon(param);
     else if (page === "natures") await renderNatures(param);
-    else if (page === "forms") await renderRegionalForms();
+    else if (page === "forms") await renderRegionalForms(param);
     else if (page === "gimmicks") await renderGimmicks(param);
     else await renderRegions();
     view.focus({ preventScroll: true });
