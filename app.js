@@ -241,6 +241,7 @@ async function renderRegion(name) {
           <img src="${SPRITE(m.id)}" alt="" loading="lazy" width="88" height="88">
           <span class="num">${pad(m.id)}</span>
           <span class="name">${esc(title(m.name))}</span>
+          ${trackBadges(m.id)}
         </a>`).join("")}
     </div>
     ${forms.length ? `<div class="mon-grid" id="form-grid" hidden>${forms.map(formCard).join("")}</div>` : ""}`;
@@ -435,7 +436,7 @@ function shinyRows(games) {
   return [...games].filter(g => g in SHINY).sort((a, b) => order.indexOf(a) - order.indexOf(b)).map(g => {
     const { base, charm } = SHINY[g];
     return `<tr>
-      <td>${esc(title(g))}</td>
+      <td>${esc(GAME_LABEL[g] || title(g))}${ownsGame(g) ? ' <span class="own-chip">You own</span>' : ""}</td>
       <td>${base ? odds(base) : '<span class="muted">No shinies in this game</span>'}</td>
       <td>${charm ? odds(charm) : `<span class="muted">${base ? "No Shiny Charm" : "—"}</span>`}</td>
     </tr>`;
@@ -577,6 +578,7 @@ async function renderPokemon(query) {
         <h1>${esc(displayName)}</h1>
         <div class="genus">${esc(genus)}</div>
         <div class="types">${types.map(t => typeBadge(t)).join("")}</div>
+        ${trackerToggles(species.id)}
         <dl class="facts">
           <div><dt>Region</dt><dd>${originRegion ? `<a href="#region/${originRegion}">${title(originRegion)}</a>` : "—"}</dd></div>
           <div><dt>Generation</dt><dd>${genLabel(species.generation.name).replace("Generation", "Gen")}</dd></div>
@@ -719,6 +721,8 @@ async function renderPokemon(query) {
     renderMoves(byVg, select.value, box);
   }
 
+  wireTrackerToggles();
+
   if (cry) {
     const audio = new Audio(cry);
     audio.volume = 0.4;
@@ -845,7 +849,7 @@ async function renderNatures(query) {
 
 function setTab(page) {
   document.querySelectorAll(".tabs a").forEach(a => {
-    const tab = ["natures", "forms", "gimmicks"].includes(page) ? page : "explore";
+    const tab = ["natures", "forms", "gimmicks", "tracker"].includes(page) ? page : "explore";
     const on = a.dataset.tab === tab;
     a.classList.toggle("active", on);
     if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
@@ -862,6 +866,7 @@ async function route() {
     else if (page === "natures") await renderNatures(param);
     else if (page === "forms") await renderRegionalForms(param);
     else if (page === "gimmicks") await renderGimmicks(param);
+    else if (page === "tracker") await renderTracker(param);
     else await renderRegions();
     view.focus({ preventScroll: true });
   } catch (err) {
