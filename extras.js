@@ -157,7 +157,8 @@ async function renderTeam() {
 
 /* ---------- Tools tab ---------- */
 
-const TOOLS = [["compare", "Compare"], ["typechart", "Type chart"], ["search", "Advanced search"], ["quiz", "Who's That Pokémon?"]];
+const TOOLS = [["compare", "Compare"], ["typechart", "Type chart"], ["search", "Advanced search"], ["stats", "Stat calculator"],
+  ["abilities", "Abilities"], ["moves", "Moves"], ["breeding", "Breeding"], ["quiz", "Who's That Pokémon?"]];
 
 async function renderTools(tool, rest = []) {
   tool = TOOLS.some(([id]) => id === tool) ? tool : "compare";
@@ -170,6 +171,10 @@ async function renderTools(tool, rest = []) {
   if (tool === "compare") await renderCompare(body, rest[0], rest[1]);
   else if (tool === "typechart") await renderTypeChart(body);
   else if (tool === "search") await renderSearch(body);
+  else if (tool === "stats") await renderStatCalc(body, rest[0]);
+  else if (tool === "abilities") await renderAbilitySearch(body, rest[0]);
+  else if (tool === "moves") await renderMoveSearch(body, rest[0]);
+  else if (tool === "breeding") await renderBreeding(body, rest[0]);
   else await renderQuiz(body);
 }
 
