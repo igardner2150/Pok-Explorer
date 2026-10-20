@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Poké Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#">
+        <span class="brand-lens" aria-hidden="true"></span>
+        <span class="brand-name">Poké Explorer</span>
+      </a>
+      <form class="search" id="global-search" role="search">
+        <label class="visually-hidden" for="search-input">Search any Pokémon by name or number</label>
+        <input id="search-input" type="search" placeholder="Search name or # (e.g. eevee, 448)" autocomplete="off" list="name-suggestions">
+        <datalist id="name-suggestions"></datalist>
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </header>
+
+  <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
+
+  <main id="view" tabindex="-1">
+    <p class="status">Loading…</p>
+  </main>
+
+  <footer class="foot">
+    <p>Poké Explorer by Jaden Stokes &amp; Ian Gardner. Data from <a href="https://pokeapi.co" target="_blank" rel="noopener">PokéAPI</a>. Pokémon and its names are trademarks of Nintendo, Creatures Inc. and GAME FREAK.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
