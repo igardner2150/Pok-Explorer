@@ -36,6 +36,7 @@ flowchart TD
     APP --> EXT["extras.js<br/>Team builder, Compare, Type chart,<br/>Search, Quiz, Pokémon of the day"]
     APP --> TRN["training.js<br/>Stat calculator, Abilities, Moves, Breeding"]
     APP --> BAT["battle.js<br/>Damage calculator, Items"]
+    APP --> UX["ux.js<br/>Search, favorites, prev/next, units,<br/>sharing, tips, type pages"]
     TESTS["tests/*.test.js"] -. "load and check" .-> APP
 ```
 
@@ -49,6 +50,7 @@ The scripts are plain JavaScript loaded in order by `index.html` (no framework, 
 | `extras.js` | Team builder and team links, Compare, Type chart, Advanced search, Who's That Pokémon?, Pokémon of the day |
 | `training.js` | Stat formula and calculator, IV/EV/nature guide, ability and move search, breeding, the Training & breeding panel |
 | `battle.js` | Damage formula and calculator (abilities, items, Tera, field), Items browser |
+| `ux.js` | Search index and dropdown (fuzzy matching), favorites and recently viewed, previous/next, metric/imperial units, share links and damage-link encoding, first-time tips, remembered sections, type pages, contrast checking |
 
 ## From a URL to a page
 
@@ -77,7 +79,8 @@ sequenceDiagram
 | `#forms`, `#forms/alola` | Regional forms | `renderRegionalForms` |
 | `#gimmicks`, `#gimmicks/charizard` | Battle gimmicks | `renderGimmicks` |
 | `#team`, `#team/a,b,c` | Team builder, shared team | `renderTeam` |
-| `#damage` | Damage calculator | `renderDamage` |
+| `#damage`, `#damage/{settings}` | Damage calculator (settings shared in the link) | `renderDamage` |
+| `#type/fire` | Type page: matchups and every Pokémon of that type | `renderTypePage` |
 | `#natures`, `#natures/garchomp` | Natures | `renderNatures` |
 | `#tools/{tool}[/…]` | Compare, Type chart, Search, Stats, Abilities, Moves, Items, Breeding, Quiz | `renderTools` |
 | `#tracker/{tab}` | My games, Pokédex, Forms, Shiny hunts | `renderTracker` |
@@ -90,7 +93,8 @@ All PokéAPI requests go through `get(url)` in `app.js`:
 
 1. **Memory:** the same request during one visit is shared, even if several parts of a page ask at once.
 2. **Browser cache (IndexedDB):** responses are kept for 7 days, so repeat visits are fast and send fewer requests to PokéAPI.
-3. **Network:** fetched from PokéAPI and saved to both caches. A 404 becomes a friendly "not found" message.
+3. **Network:** fetched from PokéAPI and saved to both caches. A 404 becomes a friendly "not found" message with "Did you mean…" suggestions.
+4. **Offline fallback:** if PokéAPI can't be reached, an older saved copy is used even past 7 days; otherwise the page shows a **Try again** button.
 
 Expensive data loads only when needed. For example, the Moves tab of a details page fetches move details the first time it's opened, and Advanced search shows results while the rest are still loading.
 
@@ -116,8 +120,17 @@ Some information isn't in PokéAPI, so it lives in clearly labelled tables in th
 | `pokeExplorerTeam` | The six team builder slots |
 | `pokeExplorerTheme` | Light or dark choice (absent means "match the device") |
 | `pokeExplorerQuizBest` | Best quiz streak |
+| `pokeExplorerFavorites` | Favorite Pokémon |
+| `pokeExplorerRecent` | The 12 most recently viewed Pokémon |
+| `pokeExplorerUnits` | Metric or imperial (absent means "based on the browser's language") |
+| `pokeExplorerHints` | Tips the person has dismissed |
+| `pokeExplorerLastPages` | The last page used in each main section |
 
 Every read and write is wrapped in `try/catch`, and a corrupted or old-format save loads safely. **Export progress** writes the tracker data to a JSON file, and **Import progress** validates it before replacing anything.
+
+## Search
+
+`ux.js` builds one index from the species list (available immediately) plus forms, moves, abilities and items (loaded the first time someone focuses the search box). Names are normalized (lowercase, no accents or punctuation, so "Flabébé" matches "flabebe" and "Mr. Mime" matches "mr mime"). Matches are scored: exact name, then start of name, then start of any word, then contains, then typo tolerance using edit distance with swapped letters counted as one edit (1 typo for 4–6 letters, 2 for longer). Ties list Pokémon in Pokédex order. The dropdown follows the ARIA combobox pattern so it works with the keyboard and screen readers.
 
 ## Formulas
 
