@@ -69,6 +69,44 @@ const VG_LABEL = {
 };
 const METHOD_LABEL = { "level-up": "Level up", machine: "TM / HM / TR", egg: "Egg moves", tutor: "Move tutor" };
 
+// Roles for the Natures tab. Each role ranks natures for a given Pokémon's base stats (b).
+const ROLES = [
+  { id: "fast-physical", label: "Fast physical attacker", desc: "Hits hard with physical moves and wants to move before the opponent.",
+    pick: b => ["jolly", "adamant"] },
+  { id: "fast-special", label: "Fast special attacker", desc: "Hits hard with special moves and wants to move before the opponent.",
+    pick: b => ["timid", "modest"] },
+  { id: "mixed", label: "Mixed attacker", desc: "Uses both physical and special moves, so it gives up a defense instead of an attack stat.",
+    pick: b => b.speed >= 80 ? ["naive", "hasty", "lonely", "mild"] : ["lonely", "mild", "naive", "hasty"] },
+  { id: "physical-wall", label: "Physical wall", desc: "Built to take physical hits and stay in for a long time.",
+    pick: b => b.attack >= b["special-attack"] ? ["impish", "bold"] : ["bold", "impish"] },
+  { id: "special-wall", label: "Special wall", desc: "Built to take special hits and stay in for a long time.",
+    pick: b => b.attack >= b["special-attack"] ? ["careful", "calm"] : ["calm", "careful"] },
+  { id: "trick-room", label: "Trick Room / slow attacker", desc: "Wants to be as slow as possible so it moves first under Trick Room.",
+    pick: b => b.attack >= b["special-attack"] ? ["brave", "quiet"] : ["quiet", "brave"] },
+  { id: "support", label: "Fast support", desc: "Sets up hazards, screens or status before the opponent can act.",
+    pick: b => b.attack >= b["special-attack"] ? ["jolly", "timid"] : ["timid", "jolly"] }
+];
+
+// Suggest a role from base stats.
+function suggestRole(b) {
+  const atk = b.attack, spa = b["special-attack"], bulk = Math.max(b.defense, b["special-defense"]);
+  if (Math.max(atk, spa) + 10 < bulk) return b.defense >= b["special-defense"] ? "physical-wall" : "special-wall";
+  const style = Math.abs(atk - spa) <= 10 ? "mixed" : atk > spa ? "physical" : "special";
+  if (style === "mixed") return "mixed";
+  if (b.speed < 50) return "trick-room";
+  return style === "physical" ? "fast-physical" : "fast-special";
+}
+
+const NATURE_STATS = ["attack", "defense", "special-attack", "special-defense", "speed"];
+
+async function getNatures() {
+  const list = await get("/nature?limit=30");
+  const all = await Promise.all(list.results.map(n => get(n.url)));
+  return Object.fromEntries(all.map(n => [n.name, n]));
+}
+
+const baseStats = mon => Object.fromEntries(mon.stats.map(s => [s.stat.name, s.base_stat]));
+
 const STAT_LABEL ={ hp:"HP", attack:"Attack", defense:"Defense", "special-attack":"Sp. Atk", "special-defense":"Sp. Def", speed:"Speed" };
 
 /* ---------- Helpers ---------- */
@@ -327,7 +365,7 @@ async function renderPokemon(query) {
   ]);
 
   const types = mon.types.map(t => t.type.name);
-  const [matchups, abilities, encounters, otherForms] = await Promise.all([
+  const [matchups, abilities, encounters, otherForms, natures] = await Promise.all([
     typeMatchups(types),
     Promise.all(mon.abilities.map(async a => {
       const ab = await get(a.ability.url);
@@ -336,7 +374,8 @@ async function renderPokemon(query) {
       return { name: english(ab.names) || title(ab.name), hidden: a.is_hidden, text };
     })),
     get(`/pokemon/${mon.id}/encounters`).catch(() => []),
-    Promise.all(species.varieties.filter(v => !v.is_default).slice(0, 10).map(v => get(v.pokemon.url).catch(() => null)))
+    Promise.all(species.varieties.filter(v => !v.is_default).slice(0, 10).map(v => get(v.pokemon.url).catch(() => null))),
+    getNatures().catch(() => null)
   ]);
 
   const displayName = english(species.names) || title(species.name);
@@ -378,6 +417,9 @@ async function renderPokemon(query) {
     [s.front_female, "Female"], [s.front_shiny_female, "Shiny female"]
   ].filter(([src]) => src);
 
+  const stats = baseStats(mon);
+  const role = ROLES.find(r => r.id === suggestRole(stats));
+  const naturePicks = natures ? role.pick(stats).slice(0, 2).map(n => natures[n]).filter(Boolean) : [];
   const shinyHtml = shinyRows(games);
   const byVg = movesByGame(mon);
   const vgs = Object.keys(byVg).sort((a, b) => vgRank(b) - vgRank(a));   // newest game first
@@ -483,6 +525,15 @@ async function renderPokemon(query) {
       </section>
 
       <section class="panel wide">
+        <div class="panel-head">
+          <h2>Natures</h2>
+          <a class="text-link" href="#natures/${species.name}">Compare all roles →</a>
+        </div>
+        <p class="muted">${esc(displayName)} can have any of the 25 natures. Based on its base stats, it suits a <strong>${esc(role.label.toLowerCase())}</strong>.</p>
+        ${naturePicks.length ? `<div class="nature-cards">${naturePicks.map((n, i) => natureCard(n, stats, i)).join("")}</div>` : ""}
+      </section>
+
+      <section class="panel wide">
         <h2>Shiny odds</h2>
         ${shinyHtml ? `
           <div class="shiny-pair">
@@ -524,14 +575,139 @@ async function renderPokemon(query) {
   }
 }
 
+/* ---------- Natures tab ---------- */
+
+const statShort = s => STAT_LABEL[s] || title(s);
+
+// One recommended-nature card, with an explanation tied to the Pokémon's base stats when one is chosen.
+function natureCard(n, b, rank) {
+  const up = n.increased_stat?.name, down = n.decreased_stat?.name;
+  let why = "";
+  if (b && up && down) {
+    why = `<p class="why">Boosts ${statShort(up)} (base ${b[up]}) and lowers ${statShort(down)} (base ${b[down]})${
+      (down === "attack" || down === "special-attack") && b[down] < Math.max(b.attack, b["special-attack"]) ? ", which it doesn't need to attack with" :
+      down === "speed" ? ", which helps under Trick Room" : ""}.</p>`;
+  }
+  return `
+    <article class="nature-card${rank === 0 ? " best" : ""}">
+      ${rank === 0 ? '<span class="badge">Best pick</span>' : ""}
+      <h3>${esc(english(n.names) || title(n.name))}</h3>
+      <div class="nature-fx">
+        <span class="up">+10% ${statShort(up)}</span>
+        <span class="down">−10% ${statShort(down)}</span>
+      </div>
+      ${why}
+      <p class="flavor">Likes ${esc(n.likes_flavor?.name || "—")} food · dislikes ${esc(n.hates_flavor?.name || "—")}</p>
+    </article>`;
+}
+
+let natureRole = null, lastNatureQuery;
+async function renderNatures(query) {
+  if (query !== lastNatureQuery) natureRole = null;
+  lastNatureQuery = query;
+  setCrumbs([{ label: "Natures", href: "#natures" }, ...(query ? [{ label: "Loading…" }] : [])]);
+  view.innerHTML = `<p class="status">Loading natures…</p>`;
+
+  const natures = await getNatures();
+  let mon = null, species = null, b = null, displayName = "";
+  if (query) {
+    species = await get(`/pokemon-species/${query}`);
+    const v = species.varieties.find(x => x.is_default) || species.varieties[0];
+    mon = await get(v.pokemon.url);
+    b = baseStats(mon);
+    displayName = english(species.names) || title(species.name);
+    setCrumbs([{ label: "Natures", href: "#natures" }, { label: displayName }]);
+  }
+  const suggested = b ? suggestRole(b) : null;
+  if (!natureRole || (suggested && natureRole.auto)) natureRole = { id: suggested || "fast-physical", auto: true };
+
+  view.innerHTML = `
+    <h1>Natures</h1>
+    <p class="lede">Every Pokémon can have any of the 25 natures. A nature raises one stat by 10% and lowers another by 10% (HP is never affected). Choose what you want the Pokémon to do, and optionally enter a Pokémon to get picks based on its base stats.</p>
+
+    <form class="nature-pokemon" id="nature-form">
+      <label for="nature-input">Pokémon</label>
+      <input id="nature-input" type="search" list="name-suggestions" placeholder="e.g. garchomp" value="${esc(species ? species.name : "")}" autocomplete="off">
+      <button type="submit">Use this Pokémon</button>
+      ${species ? `<a class="clear" href="#natures">Clear</a>` : ""}
+    </form>
+
+    ${mon ? `
+      <div class="nature-mon">
+        <img src="${SPRITE(mon.id)}" alt="">
+        <div>
+          <a href="#pokemon/${species.name}"><strong>${esc(displayName)}</strong></a>
+          <div class="mini-stats">${NATURE_STATS.concat("hp").map(s => `<span><em>${statShort(s)}</em> ${b[s]}</span>`).join("")}</div>
+          <p class="muted">Suggested role from its stats: <strong>${esc(ROLES.find(r => r.id === suggested).label)}</strong></p>
+        </div>
+      </div>` : ""}
+
+    <div class="role-tabs" role="tablist" aria-label="What do you want it to do?">
+      ${ROLES.map(r => `<button type="button" role="tab" class="role${r.id === natureRole.id ? " active" : ""}" aria-selected="${r.id === natureRole.id}" data-role="${r.id}">${esc(r.label)}${r.id === suggested ? " ★" : ""}</button>`).join("")}
+    </div>
+    <div id="role-result"></div>
+
+    <h2 class="grid-title">All 25 natures</h2>
+    <p class="muted">Rows are the stat a nature raises, columns the stat it lowers. Natures on the diagonal are neutral. Highlighted cells are the picks for the selected role.</p>
+    <div class="table-wrap"><table class="nature-grid" id="nature-grid"></table></div>`;
+
+  const byEffect = {};
+  Object.values(natures).forEach(n => {
+    const up = n.increased_stat?.name, down = n.decreased_stat?.name;
+    if (up && down) byEffect[up + "|" + down] = n;
+  });
+  const neutral = Object.values(natures).filter(n => !n.increased_stat);
+
+  function draw() {
+    const role = ROLES.find(r => r.id === natureRole.id);
+    const picks = role.pick(b || { attack: 100, "special-attack": 100, speed: 100 }).map(name => natures[name]).filter(Boolean);
+    document.getElementById("role-result").innerHTML = `
+      <p class="role-desc">${esc(role.desc)}</p>
+      <div class="nature-cards">${picks.map((n, i) => natureCard(n, b, i)).join("")}</div>`;
+
+    const pickNames = new Set(picks.map(n => n.name));
+    const neutralFor = i => neutral[i] ? english(neutral[i].names) || title(neutral[i].name) : "";
+    let ni = 0;
+    document.getElementById("nature-grid").innerHTML = `
+      <thead><tr><th>+ \\ −</th>${NATURE_STATS.map(s => `<th>−${statShort(s)}</th>`).join("")}</tr></thead>
+      <tbody>${NATURE_STATS.map(up => `<tr><th>+${statShort(up)}</th>${NATURE_STATS.map(down => {
+        if (up === down) return `<td class="neutral">${esc(neutralFor(ni++))}</td>`;
+        const n = byEffect[up + "|" + down];
+        return `<td class="${n && pickNames.has(n.name) ? "pick" : ""}">${n ? esc(english(n.names) || title(n.name)) : "—"}</td>`;
+      }).join("")}</tr>`).join("")}</tbody>`;
+  }
+
+  view.querySelectorAll(".role").forEach(btn => btn.addEventListener("click", () => {
+    natureRole = { id: btn.dataset.role, auto: false };
+    view.querySelectorAll(".role").forEach(x => { const on = x === btn; x.classList.toggle("active", on); x.setAttribute("aria-selected", on); });
+    draw();
+  }));
+  document.getElementById("nature-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const q = document.getElementById("nature-input").value.trim().toLowerCase().replace(/^#?0*(?=\d)/, "").replace(/[.']/g, "").replace(/\s+/g, "-");
+    location.hash = q ? `natures/${q}` : "natures";
+  });
+  draw();
+}
+
 /* ---------- Router & search ---------- */
+
+function setTab(page) {
+  document.querySelectorAll(".tabs a").forEach(a => {
+    const on = a.dataset.tab === (page === "natures" ? "natures" : "explore");
+    a.classList.toggle("active", on);
+    if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
+}
 
 async function route() {
   const [page, param] = decodeURIComponent(location.hash.slice(1)).split("/");
   window.scrollTo(0, 0);
+  setTab(page);
   try {
     if (page === "region" && param) await renderRegion(param);
     else if (page === "pokemon" && param) await renderPokemon(param);
+    else if (page === "natures") await renderNatures(param);
     else await renderRegions();
     view.focus({ preventScroll: true });
   } catch (err) {
