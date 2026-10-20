@@ -423,7 +423,7 @@ async function formChanges(base, form) {
         ? `${bt.map(t => typeBadge(t)).join("")} <span class="arrow">→</span> ${ft.map(t => typeBadge(t)).join("")}`
         : `${ft.map(t => typeBadge(t)).join("")} <span class="muted">(unchanged)</span>`}</div>
       <div><span class="label">Ability</span>${baseAb.join(" / ")} <span class="arrow">→</span> <strong>${formAb.join(" / ")}</strong></div>
-      <div><span class="label">Height / weight</span>${(base.height / 10).toFixed(1)} m, ${(base.weight / 10).toFixed(1)} kg <span class="arrow">→</span> ${(form.height / 10).toFixed(1)} m, ${(form.weight / 10).toFixed(1)} kg</div>
+      <div><span class="label">Height / weight</span>${heightSpan(base.height)}, ${weightSpan(base.weight)} <span class="arrow">→</span> ${heightSpan(form.height)}, ${weightSpan(form.weight)} ${unitToggle()}</div>
     </div>`;
 }
 
@@ -684,7 +684,7 @@ async function renderGimmicks(query) {
         <div class="change-grid">
           <div><span class="label">Exclusive move</span>${gtype ? `${typeBadge(gtype)} moves become <strong>${esc(gmove)}</strong>` : esc(gmove)}</div>
           <div><span class="label">Stats</span>Same as Dynamax: HP up to ×2, others unchanged</div>
-          <div><span class="label">Height</span>${(f.height / 10).toFixed(1)} m while Gigantamaxed</div>
+          <div><span class="label">Height</span>${heightSpan(f.height)} while Gigantamaxed</div>
         </div>
         ${spriteGallery(f, gimmickLabel(f.name))}
         ${table}
