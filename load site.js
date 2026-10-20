@@ -16,7 +16,7 @@ const EXPORTS = [
   "loadTracker", "saveTracker", "toggle", "fromData", "toData", "TRACKER_KEY", "STAT_KEYS", "ROLES", "Z_LOC", "STONE_LOC", "UNLOCK",
   "normalizeText", "editDistance", "buildSearchIndex", "searchIndex", "resultHash", "fmtHeight", "fmtWeight", "encodeState", "decodeState",
   "mergeKnown", "getFavorites", "toggleFavorite", "isFavorite", "getRecent", "addRecent", "clearRecent", "hintBox", "dismissHint",
-  "neighborsOf", "contrastRatio", "TYPE_COLOR", "typeText", "typeBadge", "SPECIES_BY_ID"
+  "neighborsOf", "contrastRatio", "TYPE_COLOR", "typeText", "typeBadge", "SPECIES_BY_ID", "teamSynergy", "bestSwaps", "gradeFor", "autoComplete", "parseTeamInput", "teamVersus"
 ];
 
 function fakeElement() {
