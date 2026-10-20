@@ -13,6 +13,7 @@ No build step or install is needed. Keep the three files in the same folder and 
 | `index.html` | Page shell: top bar, search, breadcrumb, main view |
 | `styles.css` | All styling, light and dark mode |
 | `app.js` | API calls, routing, the three layers, regional forms and natures |
+| `tracker.js` | My tracker tab: games owned, caught and shiny Pokémon (saved in the browser) |
 | `gimmicks.js` | Battle gimmicks tab (Mega Evolution, Primal Reversion, Z-Moves, Ultra Burst, Dynamax, Gigantamax, Terastallization) |
 
 ## The three layers
@@ -23,10 +24,12 @@ No build step or install is needed. Keep the three files in the same folder and 
 | b) Pokémon from a region | `#region/kanto` | Every Pokémon that originates in that region, with sprite and Pokédex #, plus a live filter | `GET /generation/{id}` (or `GET /pokedex/{name}` for Hisui) |
 | c) Pokémon details | `#pokemon/pikachu` | Pokédex # and entry, genus, region, height/weight, typing, weaknesses / strengths / resistances, base stats, abilities (incl. hidden), evolution chain with evolution methods, sprites and alternate forms, cry, games, wild encounter locations, shiny odds per game (with and without the Shiny Charm), every learnable move per game (level-up with levels, TM/HM/TR, egg, tutor) | `GET /pokemon-species/{name}`, `GET /pokemon/{id}`, `GET /evolution-chain/{id}`, `GET /type/{name}`, `GET /ability/{name}`, `GET /pokemon/{id}/encounters`, `GET /move/{name}` |
 
-The tab bar on the home page has four sections: **Regions**, **Regional forms**, **Battle gimmicks** and **Natures**.
+The tab bar on the home page has five sections: **Regions**, **Regional forms**, **Battle gimmicks**, **Natures** and **My tracker**.
 
 - **Regional forms** (`#forms`) works like Regions: a card for Alola, Galar, Hisui and Paldea, and selecting one (`#forms/alola`) lists that region's forms with a filter. Region pages for Alola, Galar, Hisui and Paldea also have a *Regional forms* sub-tab. Forms come from PokéAPI's Pokémon list (names like `vulpix-alola`), and each one opens its own details page (`#pokemon/vulpix-alola`).
 - **Battle gimmicks** (`#gimmicks`, or `#gimmicks/charizard`) shows each gimmick and every Mega, Primal, Ultra and Gigantamax form. For a specific Pokémon it shows, per game: the forms it can take, a stat comparison against its base form, type/ability/size changes, how its damaging moves convert into Z-Moves, Max Moves or G-Max Moves (with new power), exclusive Z-Moves, Tera rules, the item it needs (from `GET /item/{name}`), and where to get the key item. Gimmick forms, stats and moves are live from PokéAPI; game availability, Z-Move/Max Move names, power conversions and item locations are tables in `gimmicks.js` because PokéAPI doesn't have them.
+
+- **My tracker** (`#tracker/games`, `#tracker/pokedex`) lets a player check off the main-series games they own and, for all 1,025 Pokémon, which ones they've caught and which they have shiny, with progress bars and filters (generation, missing, no shiny yet). Details pages have the same *I have it* / *I have it shiny* checkboxes, region lists show ✓ and ★ badges, and the shiny-odds table marks games the player owns. Because the site has no backend, progress is saved in the player's browser (`localStorage`); **Export progress** downloads a JSON backup and **Import progress** restores it on any device.
 
 There is also a **Natures** tab (`#natures`, or `#natures/garchomp` for a specific Pokémon) on the home page. You pick a role (fast physical or special attacker, mixed attacker, physical or special wall, Trick Room, fast support) and it recommends natures, explains each pick using the Pokémon's base stats, and shows all 25 natures in a +/− grid (`GET /nature`, `GET /nature/{name}`). Each details page also suggests a role and its best natures.
 
