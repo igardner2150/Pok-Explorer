@@ -156,6 +156,25 @@ h2 { font-size: 1.15rem; letter-spacing: .03em; text-transform: uppercase; }
 .locs summary { cursor: pointer; font-weight: 600; }
 .locs ul { margin: 6px 0 2px; padding-left: 18px; color: var(--muted); font-size: .88rem; }
 
+/* Tables (shiny odds, moves) */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.data-table { width: 100%; border-collapse: collapse; font-size: .88rem; font-variant-numeric: tabular-nums; }
+.data-table th { text-align: left; font: 500 .7rem var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--bg); padding: 8px 10px; white-space: nowrap; }
+.data-table td { padding: 7px 10px; border-top: 1px solid var(--line); white-space: nowrap; }
+.data-table .num { text-align: right; font-family: var(--font-mono); }
+.data-table tbody tr:hover { background: var(--bg); }
+.note { font-size: .82rem; margin: 10px 0 0; max-width: 70ch; }
+
+.shiny-pair { display: flex; gap: 10px; margin-bottom: 12px; }
+.shiny-pair figure { margin: 0; text-align: center; background: var(--bg); border-radius: var(--radius); padding: 6px 10px; }
+.shiny-pair img { width: 96px; height: 96px; image-rendering: pixelated; }
+.shiny-pair figcaption { font-size: .75rem; color: var(--muted); }
+
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.panel-head h2 { margin: 0; }
+.vg-pick { display: flex; align-items: center; gap: 8px; font: 500 .75rem var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.vg-pick select { font: 500 .9rem var(--font-body); text-transform: none; letter-spacing: 0; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; max-width: 100%; }
+
 @media (max-width: 760px) {
   .hero { grid-template-columns: 1fr; }
   .hero-art { max-width: 280px; margin: 0 auto; width: 100%; }
