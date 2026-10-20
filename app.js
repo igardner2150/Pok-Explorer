@@ -194,7 +194,7 @@ function showError(err, what) {
   const msg = err.message === "not-found"
     ? `No Pokémon or region called “${esc(what)}” was found. Check the spelling (use hyphens, e.g. mr-mime) or try a Pokédex number.`
     : err instanceof ReferenceError
-      ? `Part of the site didn't load (${esc(err.message)}). Make sure index.html, styles.css, app.js, gimmicks.js, tracker.js and extras.js are all on the server, then refresh the page.`
+      ? `Part of the site didn't load (${esc(err.message)}). Make sure index.html, styles.css, app.js, gimmicks.js, tracker.js, extras.js and training.js are all on the server, then refresh the page.`
       : err instanceof TypeError && /fetch|network|load failed/i.test(err.message)
         ? `Couldn't reach PokéAPI. Check your internet connection and refresh the page.`
         : `Something went wrong showing this page (${esc(err.message)}). Refresh the page to try again.`;
@@ -721,6 +721,8 @@ async function renderPokemon(query) {
         <p class="muted">${esc(displayName)} can have any of the 25 natures. Based on its base stats, it suits a <strong>${esc(role.label.toLowerCase())}</strong>.</p>
         ${naturePicks.length ? `<div class="nature-cards">${naturePicks.map((n, i) => natureCard(n, stats, i)).join("")}</div>` : ""}
       </section>
+
+      ${trainingPanel(species, mon, displayName)}
 
       <section class="panel wide">
         <div class="panel-head">
