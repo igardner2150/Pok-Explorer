@@ -10,7 +10,21 @@
  */
 
 const API = "https://pokeapi.co/api/v2";
-const SPRITE = id => `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+const SPRITE_BASE = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon";
+const SPRITE = id => `${SPRITE_BASE}/${id}.png`;
+const HOME_ART = id => `${SPRITE_BASE}/other/home/${id}.png`;
+const OFFICIAL_ART = id => `${SPRITE_BASE}/other/official-artwork/${id}.png`;
+
+// Sprite <img> that falls back to HOME art, then official art, when a form has no game sprite (e.g. Gigantamax).
+const spriteImg = (id, size = 88) =>
+  `<img src="${SPRITE(id)}" data-alts="${HOME_ART(id)} ${OFFICIAL_ART(id)}" onerror="nextSprite(this)" alt="" loading="lazy" width="${size}" height="${size}">`;
+window.nextSprite = img => {
+  const [next, ...rest] = (img.dataset.alts || "").split(" ").filter(Boolean);
+  if (!next) { img.style.visibility = "hidden"; img.onerror = null; return; }
+  img.dataset.alts = rest.join(" ");
+  img.classList.add("art");
+  img.src = next;
+};
 const view = document.getElementById("view");
 const crumbs = document.getElementById("crumbs");
 
@@ -291,7 +305,7 @@ async function regionalForms(region) {
 
 const formCard = f => `
   <a class="mon-card" href="#pokemon/${f.name}" data-key="${f.name} ${f.label.toLowerCase()}">
-    <img src="${SPRITE(f.id)}" alt="" loading="lazy" width="88" height="88">
+    ${spriteImg(f.id)}
     <span class="num">${esc(REGIONAL[f.region] || "")} form</span>
     <span class="name">${esc(f.label)}</span>
   </a>`;
@@ -506,7 +520,7 @@ async function renderPokemon(query) {
     (encounterByGame[v.version.name] ||= new Set()).add(title(e.location_area.name.replace(/-area$/, "")));
   }));
 
-  const art = mon.sprites.other?.["official-artwork"]?.front_default || mon.sprites.front_default;
+  const art = mon.sprites.other?.["official-artwork"]?.front_default || mon.sprites.other?.home?.front_default || mon.sprites.front_default;
   const cry = mon.cries?.latest || mon.cries?.legacy;
   const stages = evo ? evolutionStages(evo.chain) : [];
   const total = mon.stats.reduce((s, x) => s + x.base_stat, 0);
@@ -610,7 +624,7 @@ async function renderPokemon(query) {
           <h3>Other forms <span class="muted">(select one for its full profile)</span></h3>
           <div class="sprites">
             ${otherForms.filter(Boolean).map(f => {
-              const src = f.sprites.other?.["official-artwork"]?.front_default || f.sprites.front_default;
+              const src = f.sprites.other?.["official-artwork"]?.front_default || f.sprites.other?.home?.front_default || f.sprites.front_default;
               const label = f.is_default ? speciesName : regionalInfo(f.name)?.label || title(f.name);
               return src ? `<a class="form-link" href="#pokemon/${f.name}"><figure><img class="art" src="${src}" alt="${esc(label)}" loading="lazy"><figcaption>${esc(label)}</figcaption></figure></a>` : "";
             }).join("")}
