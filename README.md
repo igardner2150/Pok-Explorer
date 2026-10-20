@@ -54,6 +54,8 @@ The site has four sections, each with its own sub-menu:
 - **Battle**
   - **Battle gimmicks:** Mega Evolution, Primal Reversion, Z-Moves, Ultra Burst, Dynamax, Gigantamax and Terastallization. For each Pokémon it shows the games each gimmick is in, how stats, types, abilities and moves change, the item needed, and where to get it in each game.
   - **Team builder:** a weakness chart, biggest threats, coverage gaps, and shareable team links.
+  - **Team synergy score:** grades the team A–F out of 100 on defensive balance, offensive coverage, role mix, speed and type variety, explains what to fix, and tests 36 popular Pokémon to suggest the swaps that raise the grade the most (one click to try a swap). Empty slots cost 4 points each, and **Auto-complete my team** fills them with the Pokémon that raise the grade most.
+  - **Compare teams:** two teams side by side (paste team links or names) with each category's winner, the total, head-to-head type pressure and a shareable link.
   - **Damage calculator:** levels, EVs, natures, stat stages, about 45 common abilities, items, Tera types, weather, critical hits, burn and screens. It shows all 16 damage rolls, % of HP and the odds to KO.
   - **Natures:** recommended natures by role, with explanations based on the Pokémon's stats.
 - **Tools:** Compare, Type chart, Advanced search, Stat calculator (with a guide to IVs, EVs and natures), Abilities, Moves, Items, Breeding, and Who's That Pokémon?
@@ -99,10 +101,11 @@ sudo cp ~/Pok-Explorer/*.html ~/Pok-Explorer/*.css ~/Pok-Explorer/*.js ~/Pok-Exp
 npm test
 ```
 
-59 automated tests (Node's built-in test runner, no dependencies) check:
+68 automated tests (Node's built-in test runner, no dependencies) check:
 
 - **Formulas:** the stat and damage formulas against Bulbapedia's worked examples, KO odds, and abilities, Tera and critical-hit rules.
 - **Names and search:** official spellings, form names, item and move names, and search matching.
+- **Team synergy:** scores add up, balanced teams beat stacked ones, tips name the real problem, suggested swaps really raise the score, auto-complete fills every slot without repeats, and team comparisons pick the right winner.
 - **Game data:** type matchups, role suggestions, shiny odds and Mega Evolution availability.
 - **Saved data:** tracker saves (including old saves and corrupted data), favorites, recently viewed, hints, and shiny hunt math.
 - **Conveniences:** search ranking and typo tolerance, unit conversion, share-link encoding, previous/next, and color contrast for every type badge.
