@@ -119,12 +119,6 @@ async function renderTracker(tab) {
   view.innerHTML = `
     <h1>My tracker</h1>
     <p class="lede">Check off the games you own and the Pokémon you've caught or have shiny. Your progress is saved in this browser on this device; use Export to back it up or move it to another device.</p>
-    <div class="sub-tabs">
-      <a class="sub-tab${tab === "games" ? " active" : ""}" href="#tracker/games">My games <span class="muted" id="games-count"></span></a>
-      <a class="sub-tab${tab === "pokedex" ? " active" : ""}" href="#tracker/pokedex">Pokédex <span class="muted" id="dex-count"></span></a>
-      <a class="sub-tab${tab === "forms" ? " active" : ""}" href="#tracker/forms">Forms <span class="muted" id="forms-count"></span></a>
-      <a class="sub-tab${tab === "hunts" ? " active" : ""}" href="#tracker/hunts">Shiny hunts <span class="muted" id="hunts-count"></span></a>
-    </div>
     <div id="tracker-body"><p class="status">Loading…</p></div>
     <div class="backup">
       <h2>Backup</h2>
@@ -256,7 +250,7 @@ async function renderDexTab() {
       <div class="dex-row${tracker.caught.has(p.id) ? " is-caught" : ""}${tracker.shiny.has(p.id) ? " is-shiny" : ""}" data-id="${p.id}">
         <img src="${SPRITE(p.id)}" alt="" loading="lazy" width="56" height="56">
         <span class="num">${pad(p.id)}</span>
-        <a href="#pokemon/${p.name}" class="dex-name">${esc(title(p.name))}</a>
+        <a href="#pokemon/${p.name}" class="dex-name">${esc(pokeName(p.name))}</a>
         <label class="dex-check"><input type="checkbox" data-set="caught" ${tracker.caught.has(p.id) ? "checked" : ""}><span>Caught</span></label>
         <label class="dex-check shiny"><input type="checkbox" data-set="shiny" ${tracker.shiny.has(p.id) ? "checked" : ""}><span>Shiny ★</span></label>
       </div>`).join("") : '<p class="muted">Nothing matches these filters.</p>';
@@ -343,7 +337,7 @@ function wireBackup() {
 /* ---------- Box view ---------- */
 
 const slotClass = id => `box-slot${tracker.caught.has(id) ? " caught" : ""}${tracker.shiny.has(id) ? " shiny" : ""}`;
-const slotTitle = (name, id) => `${pad(id)} ${title(name)}: ${tracker.shiny.has(id) ? "shiny" : tracker.caught.has(id) ? "caught" : "not caught"} (click to change)`;
+const slotTitle = (name, id) => `${pad(id)} ${pokeName(name)}: ${tracker.shiny.has(id) ? "shiny" : tracker.caught.has(id) ? "caught" : "not caught"} (click to change)`;
 
 // Living Dex boxes: 30 slots each, in National Pokédex order, like the in-game PC.
 function boxView(rows) {
@@ -361,7 +355,7 @@ function boxView(rows) {
       return `<section class="pc-box">
         <h3>Box ${box} <span class="muted">${pad(first)}–${pad(Math.min(first + 29, 1025))} · ${list.filter(p => tracker.caught.has(p.id)).length}/${list.length}</span></h3>
         <div class="box-grid">${slots.map(p => p
-          ? `<button type="button" class="${slotClass(p.id)}" data-id="${p.id}" data-name="${p.name}" title="${esc(slotTitle(p.name, p.id))}"><img src="${SPRITE(p.id)}" alt="${esc(title(p.name))}" loading="lazy"></button>`
+          ? `<button type="button" class="${slotClass(p.id)}" data-id="${p.id}" data-name="${p.name}" title="${esc(slotTitle(p.name, p.id))}"><img src="${SPRITE(p.id)}" alt="${esc(pokeName(p.name))}" loading="lazy"></button>`
           : `<span class="box-slot empty"></span>`).join("")}</div>
       </section>`;
     }).join("");
