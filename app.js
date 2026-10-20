@@ -125,14 +125,52 @@ const STAT_LABEL ={ hp:"HP", attack:"Attack", defense:"Defense", "special-attack
 
 /* ---------- Helpers ---------- */
 
+// Two cache levels: memory (this visit) and IndexedDB in the browser (repeat visits, kept 7 days).
+// IndexedDB works on plain http too; if it's unavailable the site just fetches as normal.
 const cache = new Map();
+const DISK_TTL = 7 * 24 * 60 * 60 * 1000;
+const diskDb = new Promise(resolve => {
+  try {
+    const req = indexedDB.open("poke-explorer-cache", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("responses");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(null);
+  } catch { resolve(null); }
+});
+
+async function diskGet(url) {
+  const db = await diskDb;
+  if (!db) return null;
+  return new Promise(resolve => {
+    try {
+      const req = db.transaction("responses").objectStore("responses").get(url);
+      req.onsuccess = () => {
+        const hit = req.result;
+        resolve(hit && Date.now() - hit.t < DISK_TTL ? hit.data : null);
+      };
+      req.onerror = () => resolve(null);
+    } catch { resolve(null); }
+  });
+}
+
+async function diskPut(url, data) {
+  const db = await diskDb;
+  if (!db) return;
+  try { db.transaction("responses", "readwrite").objectStore("responses").put({ t: Date.now(), data }, url); } catch {}
+}
+
 async function get(url) {
   if (!url.startsWith("http")) url = API + url;
   if (cache.has(url)) return cache.get(url);
-  const promise = fetch(url).then(res => {
+  const promise = (async () => {
+    const saved = await diskGet(url);
+    if (saved) return saved;
+    const res = await fetch(url);
     if (!res.ok) throw new Error(res.status === 404 ? "not-found" : `PokéAPI returned ${res.status}`);
-    return res.json();
-  });
+    const data = await res.json();
+    diskPut(url, data);
+    return data;
+  })();
   cache.set(url, promise);
   promise.catch(() => cache.delete(url));
   return promise;
@@ -155,7 +193,11 @@ function setCrumbs(items) {
 function showError(err, what) {
   const msg = err.message === "not-found"
     ? `No Pokémon or region called “${esc(what)}” was found. Check the spelling (use hyphens, e.g. mr-mime) or try a Pokédex number.`
-    : `Couldn't reach PokéAPI (${esc(err.message)}). Check your internet connection and refresh the page.`;
+    : err instanceof ReferenceError
+      ? `Part of the site didn't load (${esc(err.message)}). Make sure index.html, styles.css, app.js, gimmicks.js, tracker.js and extras.js are all on the server, then refresh the page.`
+      : err instanceof TypeError && /fetch|network|load failed/i.test(err.message)
+        ? `Couldn't reach PokéAPI. Check your internet connection and refresh the page.`
+        : `Something went wrong showing this page (${esc(err.message)}). Refresh the page to try again.`;
   view.innerHTML = `<div class="error"><p>${msg}</p><p><a href="#">Back to regions</a></p></div>`;
 }
 
@@ -174,6 +216,7 @@ async function renderRegions() {
   const regions = allRegions.filter((r, i) => hasPokemon[i]);
 
   view.innerHTML = `
+    <div id="home-extras"></div>
     <h1>Choose a region</h1>
     <p class="lede">Every Pokémon debuted in one of these regions. Pick a region to see the Pokémon that originate there, or search any Pokémon by name or number above.</p>
     <div class="region-grid">
@@ -187,6 +230,7 @@ async function renderRegions() {
           </a>`;
       }).join("")}
     </div>`;
+  renderHomeExtras(document.getElementById("home-extras"));
 }
 
 /* ---------- Layer 2: Pokémon in a region ---------- */
@@ -849,7 +893,7 @@ async function renderNatures(query) {
 
 function setTab(page) {
   document.querySelectorAll(".tabs a").forEach(a => {
-    const tab = ["natures", "forms", "gimmicks", "tracker"].includes(page) ? page : "explore";
+    const tab = ["natures", "forms", "gimmicks", "tracker", "team", "tools"].includes(page) ? page : "explore";
     const on = a.dataset.tab === tab;
     a.classList.toggle("active", on);
     if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
@@ -857,7 +901,7 @@ function setTab(page) {
 }
 
 async function route() {
-  const [page, param] = decodeURIComponent(location.hash.slice(1)).split("/");
+  const [page, param, ...rest] = decodeURIComponent(location.hash.slice(1)).split("/");
   window.scrollTo(0, 0);
   setTab(page);
   try {
@@ -867,6 +911,8 @@ async function route() {
     else if (page === "forms") await renderRegionalForms(param);
     else if (page === "gimmicks") await renderGimmicks(param);
     else if (page === "tracker") await renderTracker(param);
+    else if (page === "team") await renderTeam();
+    else if (page === "tools") await renderTools(param, rest);
     else await renderRegions();
     view.focus({ preventScroll: true });
   } catch (err) {
