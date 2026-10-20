@@ -1104,7 +1104,7 @@ async function renderNatures(query) {
 const SECTIONS = [
   { id: "pokedex", items: [["regions", "Regions", "#"], ["forms", "Regional forms", "#forms"]] },
   { id: "battle", items: [["gimmicks", "Battle gimmicks", "#gimmicks"], ["team", "Team builder", "#team"],
-    ["damage", "Damage calculator", "#damage"], ["natures", "Natures", "#natures"]] },
+    ["teamvs", "Compare teams", "#teamvs"], ["damage", "Damage calculator", "#damage"], ["natures", "Natures", "#natures"]] },
   { id: "tools", items: [["compare", "Compare", "#tools/compare"], ["typechart", "Type chart", "#tools/typechart"],
     ["search", "Advanced search", "#tools/search"], ["stats", "Stat calculator", "#tools/stats"],
     ["abilities", "Abilities", "#tools/abilities"], ["moves", "Moves", "#tools/moves"], ["items", "Items", "#tools/items"],
@@ -1114,7 +1114,7 @@ const SECTIONS = [
 ];
 
 function navFor(page, param) {
-  if (["gimmicks", "team", "damage", "natures"].includes(page)) return ["battle", page];
+  if (["gimmicks", "team", "teamvs", "damage", "natures"].includes(page)) return ["battle", page];
   if (page === "type") return ["tools", "typechart"];
   if (page === "tools") return ["tools", param || "compare"];
   if (page === "tracker") return ["tracker", param || "games"];
@@ -1174,6 +1174,7 @@ async function route() {
     else if (page === "gimmicks") await renderGimmicks(param);
     else if (page === "tracker") await renderTracker(param);
     else if (page === "team") await renderTeam(param);
+    else if (page === "teamvs") await renderTeamCompare(param, rest[0]);
     else if (page === "damage") await renderDamage(param);
     else if (page === "type" && param) await renderTypePage(param);
     else if (page === "tools") await renderTools(param, rest);
