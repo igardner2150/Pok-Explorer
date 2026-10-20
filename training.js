@@ -196,12 +196,12 @@ function statGuide() {
 
 /* ---------- Ability search ---------- */
 
-async function fillDatalist(id, url) {
+async function fillDatalist(id, url, label = title) {
   if (document.getElementById(id)) return;
   const dl = document.createElement("datalist");
   dl.id = id;
   document.body.appendChild(dl);
-  try { dl.innerHTML = (await get(url)).results.map(r => `<option value="${r.name}">`).join(""); } catch {}
+  try { dl.innerHTML = (await get(url)).results.map(r => `<option value="${r.name}">${esc(label(r.name))}</option>`).join(""); } catch {}
 }
 
 const englishEffect = x => {
@@ -256,7 +256,7 @@ async function renderAbilitySearch(body, query) {
 /* ---------- Move search ---------- */
 
 async function renderMoveSearch(body, query) {
-  fillDatalist("move-list", "/move?limit=1000");
+  fillDatalist("move-list", "/move?limit=1000", moveName);
   body.innerHTML = `
     <form class="compare-form" id="mv-form">
       <label for="mv-q" class="visually-hidden">Move</label>
