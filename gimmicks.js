@@ -307,39 +307,98 @@ async function convertedMoveTable(byVg, vgList, convert, head) {
 
 /* ---------- Page: overview ---------- */
 
+let gimmickTab = "mega";   // remembered while moving around the site
+
+// A row of tabs, one per gimmick; clicking shows that gimmick's panel only.
+function gimmickTabs(ids, active) {
+  return `<div class="sub-tabs gimmick-tabs" role="tablist" aria-label="Battle gimmicks">
+    ${ids.map(id => {
+      const g = GIMMICKS.find(x => x.id === id);
+      return `<button type="button" role="tab" class="sub-tab${id === active ? " active" : ""}" aria-selected="${id === active}" data-gimmick="${id}">${esc(g.name)}</button>`;
+    }).join("")}
+  </div>`;
+}
+
+function wireGimmickTabs(onSelect) {
+  view.querySelectorAll(".gimmick-tabs .sub-tab").forEach(btn => btn.addEventListener("click", () => {
+    view.querySelectorAll(".gimmick-tabs .sub-tab").forEach(b => { const on = b === btn; b.classList.toggle("active", on); b.setAttribute("aria-selected", on); });
+    view.querySelectorAll("[data-gimmick-panel]").forEach(p => (p.hidden = p.dataset.gimmickPanel !== btn.dataset.gimmick));
+    onSelect?.(btn.dataset.gimmick);
+  }));
+}
+
 async function renderGimmickOverview() {
   setCrumbs([{ label: "Battle gimmicks" }]);
   view.innerHTML = `<p class="status">Loading battle gimmicks…</p>`;
   const all = await getAllPokemon();
   const forms = all.results.filter(p => GIMMICK_FORM_RE.test(p.name)).map(p => ({ name: p.name, id: idFromUrl(p.url), g: gimmickOf(p.name) }));
 
-  const grid = list => `<div class="mon-grid">${list.map(f => `
+  const grid = (list, extra = () => "") => `<div class="mon-grid">${list.map(f => `
     <a class="mon-card" href="#gimmicks/${f.name}">
       ${spriteImg(f.id)}
-      <span class="name">${esc(gimmickLabel(f.name))}</span>
+      <span class="name">${esc(gimmickLabel(f.name))}</span>${extra(f)}
     </a>`).join("")}</div>`;
+  const ofType = g => forms.filter(f => f.g === g);
+
+  const body = {
+    mega: `<h3>All Mega Evolutions <span class="muted">(${ofType("mega").length})</span></h3>${grid(ofType("mega"))}`,
+    primal: `<h3>Primal forms</h3>${grid(ofType("primal"))}`,
+    zmove: `
+      <h3>Type Z-Crystals <span class="muted">(any Pokémon)</span></h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Type</th><th>Z-Crystal</th><th>Z-Move</th></tr></thead>
+        <tbody>${Object.entries(Z_TYPE).map(([t, [crystal, move]]) => `<tr><td>${typeBadge(t)}</td><td>${crystal}</td><td><strong>${move}</strong></td></tr>`).join("")}</tbody>
+      </table></div>
+      <h3>Exclusive Z-Moves</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Pokémon</th><th>Z-Crystal</th><th>Uses</th><th>Exclusive Z-Move</th></tr></thead>
+        <tbody>${Object.entries(Z_EXCLUSIVE).flatMap(([mon, list]) => list.map(([crystal, move, z]) =>
+          `<tr><td><a class="text-link" href="#gimmicks/${mon}">${esc(regionalInfo(mon)?.label || title(mon))}</a></td><td>${esc(crystal)}</td><td>${esc(move)}</td><td><strong>${esc(z)}</strong></td></tr>`)).join("")}</tbody>
+      </table></div>`,
+    ultra: `<h3>Ultra Burst form</h3>${grid(ofType("ultra"))}`,
+    dynamax: `
+      <h3>Max Moves by type</h3>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Move type</th><th>Becomes</th></tr></thead>
+        <tbody>${Object.entries(MAX_MOVE).map(([t, m]) => `<tr><td>${typeBadge(t)}</td><td><strong>${m}</strong></td></tr>`).join("")}
+          <tr><td><span class="muted">Any status move</span></td><td><strong>Max Guard</strong></td></tr></tbody>
+      </table></div>
+      <p class="note muted">Zacian, Zamazenta and Eternatus can't Dynamax.</p>`,
+    gmax: `<h3>All Gigantamax forms <span class="muted">(${ofType("gmax").length})</span></h3>${grid(ofType("gmax"), f => {
+      const gm = GMAX_MOVE[f.name.replace(/-gmax$/, "")];
+      return gm ? `<span class="num">${esc(gm[0])}</span>` : "";
+    })}`,
+    tera: `
+      <h3>How it works</h3>
+      <ul class="plain">
+        <li>Every Pokémon has a Tera Type. Usually it matches one of its own types, but it can be any of the 18 types.</li>
+        <li>After Terastallizing, the Pokémon has only its Tera Type for the rest of the battle, which changes its weaknesses and resistances.</li>
+        <li>It gets STAB on its Tera Type, and 2× STAB instead of 1.5× if the Tera Type matches one of its original types.</li>
+        <li>Tera Blast becomes the Tera Type, and turns physical if the user's Attack is higher than its Sp. Atk.</li>
+        <li>The Stellar Tera Type (The Indigo Disk) boosts every type's moves once each instead.</li>
+      </ul>
+      <p class="note muted">Look up a Pokémon above to see its usual Tera Type.</p>`
+  };
 
   view.innerHTML = `
     <h1>Battle gimmicks</h1>
-    <p class="lede">Each generation added its own once-per-battle power-up. Look up a Pokémon to see which gimmicks it can use in each game, what changes about its stats and moves, and what you need to unlock it.</p>
+    <p class="lede">Each generation added its own once-per-battle power-up. Pick one below, or look up a Pokémon to see which gimmicks it can use in each game, what changes about its stats and moves, and what you need to unlock it.</p>
     ${gimmickSearchForm("")}
-    <div class="gimmick-cards">
-      ${GIMMICKS.map(g => `
-        <article class="gimmick-card">
-          <div class="dex-no">${esc(g.gen)}</div>
-          <h3>${esc(g.name)}</h3>
-          <p>${esc(g.how)}</p>
-          <p class="muted">${esc(g.changes)}</p>
-          ${chips(g.games)}
-        </article>`).join("")}
-    </div>
-    <h2 class="grid-title">Mega Evolutions <span class="muted">(${forms.filter(f => f.g === "mega").length})</span></h2>
-    ${grid(forms.filter(f => f.g === "mega"))}
-    <h2 class="grid-title">Primal Reversion and Ultra Burst</h2>
-    ${grid(forms.filter(f => f.g === "primal" || f.g === "ultra"))}
-    <h2 class="grid-title">Gigantamax forms <span class="muted">(${forms.filter(f => f.g === "gmax").length})</span></h2>
-    ${grid(forms.filter(f => f.g === "gmax"))}`;
+    ${gimmickTabs(GIMMICKS.map(g => g.id), gimmickTab)}
+    ${GIMMICKS.map(g => `
+      <section class="panel gimmick-panel" data-gimmick-panel="${g.id}"${g.id === gimmickTab ? "" : " hidden"}>
+        <div class="panel-head"><h2>${esc(g.name)}</h2><span class="dex-no">${esc(g.gen)}</span></div>
+        <p>${esc(g.how)}</p>
+        <p class="muted">${esc(g.changes)}</p>
+        ${chips(g.games)}
+        <div class="change-grid gimmick-needs">
+          <div><span class="label">Key item</span>${esc(g.keyItem)}</div>
+          <div><span class="label">Held item</span>${esc(g.held)}</div>
+        </div>
+        ${body[g.id]}
+      </section>`).join("")}`;
   wireGimmickSearch();
+  wireGimmickTabs(id => (gimmickTab = id));
 }
 
 function gimmickSearchForm(value) {
@@ -503,6 +562,11 @@ async function renderGimmicks(query) {
       ${whereToGet("tera", ["Scarlet / Violet"])}`));
   } else notAvailable.push("Terastallization (not in Scarlet / Violet)");
 
+  // Show one gimmick at a time; open the tab the user last picked if this Pokémon has it.
+  const sectionIds = sections.map(html => html.match(/data-gimmick-panel="([^"]+)"/)[1]);
+  const active = sectionIds.includes(gimmickTab) ? gimmickTab : sectionIds[0];
+  sections.forEach((html, i) => { if (sectionIds[i] !== active) sections[i] = html.replace("data-gimmick-panel=", "hidden data-gimmick-panel="); });
+
   view.innerHTML = `
     <h1>${esc(name)}: battle gimmicks</h1>
     ${gimmickSearchForm(species.name)}
@@ -514,14 +578,16 @@ async function renderGimmicks(query) {
         <p class="muted">${sections.length ? `Can use ${sections.length} gimmick${sections.length > 1 ? "s" : ""}.` : "Can't use any battle gimmick."}</p>
       </div>
     </div>
+    ${sections.length > 1 ? gimmickTabs(sectionIds, active) : ""}
     ${sections.join("")}
     ${notAvailable.length ? `<p class="muted note">Not available: ${notAvailable.map(esc).join(" · ")}.</p>` : ""}`;
   wireGimmickSearch();
+  wireGimmickTabs(id => (gimmickTab = id));
 }
 
 function gimmickSection(id, body) {
   const g = GIMMICKS.find(x => x.id === id);
-  return `<section class="panel gimmick-panel">
+  return `<section class="panel gimmick-panel" data-gimmick-panel="${id}">
     <div class="panel-head"><h2>${esc(g.name)}</h2><span class="dex-no">${esc(g.gen)}</span></div>
     <p class="muted">${esc(g.how)}</p>
     ${body}
