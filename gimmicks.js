@@ -48,11 +48,82 @@ const GIMMICKS = [
     changes: "Stats don't change. Its type becomes its Tera Type, it gets STAB on that type (2× if it matches an original type), and Tera Blast becomes that type." }
 ];
 
-// Where to get the key item / form item, per game. Only verified entries are filled in;
-// add more here as "Game label": "where to get it".
+// Where to get the key item that unlocks each gimmick, per game.
+// Sources: Bulbapedia (Key Stone, Mega Bracelet, Z-Ring, Dynamax Band, Tera Orb, Max Soup, Red Orb pages).
 const UNLOCK = {
-  mega: { "X / Y": "Mega Ring: given by Gurkinn at the Tower of Mastery in Shalour City after you beat Korrina." },
-  gmax: { "Sword / Shield": "Gigantamax Factor: catch a Gigantamax Pokémon in a Max Raid Battle, or (Isle of Armor DLC) have the cook at the Master Dojo make Max Soup from 3 Max Mushrooms and feed it to a Pokémon that has a Gigantamax form." }
+  mega: {
+    "X / Y": "Mega Ring: from Korrina at the Tower of Mastery (Shalour City), after earning the Rumble Badge.",
+    "Omega Ruby / Alpha Sapphire": "Mega Bracelet: from Steven on Southern Island, after Latios (Omega Ruby) or Latias (Alpha Sapphire) joins you.",
+    "Sun / Moon": "Key Stone: from Dexio at the Ancient Poni Path, after becoming Champion.",
+    "Ultra Sun / Ultra Moon": "Key Stone: from Dexio at Poni Plains, after becoming Champion.",
+    "Let's Go Pikachu / Eevee": "Key Stone: from Blue at Professor Oak's Laboratory, after earning seven Badges.",
+    "Legends: Z-A": "Mega Ring: from AZ in Jaune Sector 10, before facing the Rogue Mega Absol."
+  },
+  zmove: {
+    "Sun / Moon": "Z-Ring: Hala refines Tapu Koko's Sparkling Stone into a Z-Ring and gives it to you in Iki Town after your festival battle with Hau."
+  },
+  dynamax: {
+    "Sword / Shield": "Dynamax Band: from Professor Magnolia on Route 2, after you receive the Wishing Star."
+  },
+  gmax: {
+    "Sword / Shield": "Dynamax Band (Route 2, from Professor Magnolia) plus the Gigantamax Factor: catch a Gigantamax Pokémon in a Max Raid Battle, or on the Isle of Armor, after clearing Mustard's second trial, have a Master Dojo student cook Max Soup from 3 Max Mushrooms (Urshifu also needs Max Honey) and feed it to the Pokémon. Melmetal can't use Max Soup."
+  },
+  tera: {
+    "Scarlet / Violet": "Tera Orb: from Nemona in Mesagoza, after you defeat the Team Star grunt bothering Penny. Recharge it at a Pokémon Center or an unvisited Tera Raid crystal."
+  },
+  primal: {
+    "Omega Ruby / Alpha Sapphire": "Red Orb: in Omega Ruby from Maxie in Sootopolis City after battling Groudon; in Alpha Sapphire at Mt. Pyre's summit after defeating Matt.",
+    "Sun / Moon": "Red Orb: Hau'oli City Mall (Antiquities of the Ages).",
+    "Ultra Sun / Ultra Moon": "Red Orb: Hau'oli City Mall (Antiquities of the Ages)."
+  }
+};
+
+// Where to find each Mega Stone, per game.
+// Sources: Gamer Guides (X / Y Mega Stone locations) and Prima Games (Omega Ruby / Alpha Sapphire Mega Stone guide).
+// "8–9 PM" stones in X / Y appear on the ground after the post-game Mega Ring upgrade, by the 3DS clock.
+const STONE_LOC = {
+  "X / Y": {
+    abomasite: "Frost Cavern", absolite: "Kiloude City, after upgrading the Mega Ring (post-game)",
+    aerodactylite: "Ambrette Town", aggronite: "Cyllage City Gym (Y only, 8–9 PM, post-game)",
+    alakazite: "Reflection Cave B3F (8–9 PM, post-game)", ampharosite: "Azure Bay",
+    banettite: "Chamber of Emptiness (8–9 PM, post-game)", blastoisinite: "Comes with Squirtle as your Kanto starter, or buy in Lumiose City",
+    blazikenite: "Held by the Torchic from an X / Y Mystery Gift event", "charizardite-x": "Comes with Charmander as your Kanto starter, or buy in Lumiose City (X only)",
+    "charizardite-y": "Comes with Charmander as your Kanto starter, or buy in Lumiose City (Y only)", garchompite: "Victory Road (8–9 PM, post-game)",
+    gardevoirite: "In-game trade in Lumiose City", gengarite: "Laverre City", gyaradosite: "Couriway Town (8–9 PM, post-game)",
+    heracronite: "Santalune Forest (Y only, 8–9 PM, post-game)", houndoominite: "Route 16 (Y only, 8–9 PM, post-game)",
+    kangaskhanite: "Glittering Cave (8–9 PM, post-game)", lucarionite: "Story event at the top of the Tower of Mastery, Shalour City",
+    manectite: "Route 16 (X only, 8–9 PM, post-game)", mawilite: "Shabboneau Castle (8–9 PM, post-game)",
+    medichamite: "Laverre City (8–9 PM, post-game)", "mewtwonite-x": "Found after catching Mewtwo (X only)",
+    "mewtwonite-y": "Found after catching Mewtwo (Y only)", pinsirite: "Santalune Forest (X only, 8–9 PM, post-game)",
+    scizorite: "Frost Cavern, behind Abomasnow (8–9 PM, post-game)", tyranitarite: "Cyllage City Gym (X only, 8–9 PM, post-game)",
+    venusaurite: "Comes with Bulbasaur as your Kanto starter, or buy in Lumiose City"
+  },
+  "Omega Ruby / Alpha Sapphire": {
+    absolite: "Safari Zone", aggronite: "Rusturf Tunnel (reward for breaking rocks with Rock Smash)", alakazite: "Slateport City market",
+    altarianite: "Lilycove City (bring an Altaria to Lisia's fan)", banettite: "Mt. Pyre summit", beedrillite: "Sea Mauville storage",
+    blazikenite: "Route 120 from Steven if you chose Torchic, or buy on Route 114 after the Super-Ancient Pokémon",
+    garchompite: "Fortree City, from Aarune once your team reaches Platinum Rank in the Secret Base Guild", glalitite: "Shoal Cave ice cavern",
+    gyaradosite: "Route 123", heracronite: "Route 127 (on an island)",
+    latiasite: "Southern Island story event; another from your mom in Littleroot Town", latiosite: "Southern Island story event; another from your mom in Littleroot Town",
+    lucarionite: "Any Contest Hall (beat Lisia in a Master Rank contest)", manectite: "Route 110, near Cycling Road",
+    mawilite: "Verdanturf Town", medichamite: "Mt. Pyre", pidgeotite: "Verdanturf Town (show the stone from the girl's Shroomish to Mr. Stone in Rustboro City)",
+    pinsirite: "Route 124", sablenite: "Sootopolis City, near the bridge by the Cave of Origin",
+    sceptilite: "Route 120 from Steven if you chose Treecko, or buy on Route 114 after the Super-Ancient Pokémon",
+    slowbronite: "Shoal Cave, from the old man after receiving the Shell Bell", steelixite: "Granite Cave (lower floors)",
+    swampertite: "Route 120 from Steven if you chose Mudkip, or buy on Route 114 after the Super-Ancient Pokémon",
+    abomasite: "Route 123 berry fields (after the Super-Ancient Pokémon)", aerodactylite: "Meteor Falls (after the Super-Ancient Pokémon)",
+    ampharosite: "New Mauville (after the Super-Ancient Pokémon)", "charizardite-x": "Fiery Path (after the Super-Ancient Pokémon)",
+    "charizardite-y": "Scorched Slab (after the Super-Ancient Pokémon)", gardevoirite: "Verdanturf Town, from Wanda (after the Super-Ancient Pokémon)",
+    houndoominite: "Lavaridge Town (after the Super-Ancient Pokémon)", kangaskhanite: "Pacifidlog Town (after the Super-Ancient Pokémon)",
+    lopunnite: "Mauville Hills, from the businessman (after the Super-Ancient Pokémon)", "mewtwonite-x": "Littleroot Town (after the Super-Ancient Pokémon)",
+    "mewtwonite-y": "Pokémon League (after the Super-Ancient Pokémon)", scizorite: "Petalburg Woods (after the Super-Ancient Pokémon)",
+    tyranitarite: "Jagged Pass (after the Super-Ancient Pokémon)", venusaurite: "Route 119 (after the Super-Ancient Pokémon)",
+    audinite: "Battle Resort, from Looker (Delta Episode or later)", blastoisinite: "S.S. Tidal (Delta Episode or later)",
+    cameruptite: "Team Magma's Hideout / Battle Resort grunt (Delta Episode or later)", galladite: "Fallarbor Town, from Professor Cozmo (Delta Episode or later)",
+    gengarite: "Battle Resort (Delta Episode or later)", metagrossite: "Pokémon League, after beating Steven again (Delta Episode or later)",
+    salamencite: "Meteor Falls, from the old women (Delta Episode or later)", sharpedonite: "Team Aqua's Hideout / Battle Resort grunt (Delta Episode or later)",
+    diancite: "Bring a Diancie from a past event to a Pokémon Center"
+  }
 };
 
 /* ---------- Item and move tables ---------- */
@@ -236,15 +307,19 @@ function itemBox(item, fallback) {
   </div>`;
 }
 
-function whereToGet(gimmickId, games) {
+function whereToGet(gimmickId, games, itemSlug, itemName) {
   const g = GIMMICKS.find(x => x.id === gimmickId);
+  const missing = '<span class="muted">Not listed yet</span>';
+  const showItem = itemSlug && gimmickId === "mega";
   const rows = games.map(game => {
-    const info = UNLOCK[gimmickId]?.[game];
-    return `<tr><td>${esc(game)}</td><td>${info ? esc(info) : '<span class="muted">Location not added yet</span>'}</td></tr>`;
+    const key = UNLOCK[gimmickId]?.[game];
+    const item = showItem ? STONE_LOC[game]?.[itemSlug] : null;
+    return `<tr><td>${esc(game)}</td><td>${key ? esc(key) : missing}</td>${showItem ? `<td>${item ? esc(item) : missing}</td>` : ""}</tr>`;
   }).join("");
   return `<h3>Where to get what you need</h3>
     <p class="muted">Key item: ${esc(g.keyItem)} · Held item: ${esc(g.held)}</p>
-    <div class="table-wrap"><table class="data-table wrap"><thead><tr><th>Game</th><th>Where to get it</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    <div class="table-wrap"><table class="data-table wrap"><thead><tr><th>Game</th><th>Key item</th>${showItem ? `<th>${esc(itemName || "Mega Stone")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>
+    ${showItem ? '<p class="note muted">Stone locations for Sun / Moon, Ultra Sun / Ultra Moon, Let\'s Go and Legends: Z-A aren\'t listed yet.</p>' : ""}`;
 }
 
 function statCompare(base, form) {
@@ -458,7 +533,7 @@ async function renderGimmicks(query) {
           ? "Mega Rayquaza doesn't use a Mega Stone. It must know Dragon Ascent, and its moves otherwise stay the same."
           : "Moves: unchanged. A Mega Pokémon keeps the same four moves; only its stats, ability and type change."}</p>
         ${itemBox(stone, f.name === "rayquaza-mega" ? "No stone needed (knows Dragon Ascent)" : "Its Mega Stone")}
-        ${whereToGet("mega", games)}
+        ${whereToGet("mega", games, MEGA_STONE[f.name], stone?.name)}
       </div>`;
     }));
     sections.push(gimmickSection("mega", blocks.join("")));
