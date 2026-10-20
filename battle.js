@@ -164,7 +164,9 @@ let dmgState = {
   move: "dragon-claw", crit: false, weather: "none", screen: false, spread: false
 };
 
-async function renderDamage() {
+async function renderDamage(code) {
+  // A shared link carries the settings: #damage/<code>
+  if (code) mergeKnown(dmgState, decodeState(code));
   setCrumbs([{ label: "Battle", href: "#gimmicks" }, { label: "Damage calculator" }]);
   view.innerHTML = `
     <h1>Damage calculator</h1>
@@ -318,7 +320,10 @@ async function renderDamage() {
     const effWord = res.eff === 0 ? "no effect" : res.eff >= 4 ? "4× super effective" : res.eff >= 2 ? "super effective" : res.eff < 1 ? "not very effective" : "neutral";
 
     out.innerHTML = `
-      <p class="dmg-line"><strong>${esc(atk.label)}</strong>'s <strong>${esc(move.label)}</strong> vs <strong>${esc(def.label)}</strong></p>
+      <div class="dmg-top">
+        <p class="dmg-line"><strong>${esc(atk.label)}</strong>'s <strong>${esc(move.label)}</strong> vs <strong>${esc(def.label)}</strong></p>
+        ${shareButton("dmg-share", "Share result")}
+      </div>
       <div class="dmg-big">
         <span class="dmg-range">${min}–${max}</span>
         <span class="dmg-pct">${pct(min)}% – ${pct(max)}% of ${hp} HP</span>
@@ -330,6 +335,8 @@ async function renderDamage() {
       </div>
       <p class="muted small">${esc(effWord)}${res.moveType !== move.type ? ` · becomes ${esc(title(res.moveType))}-type` : ""}${res.eff === 0 && ABILITY_IMMUNE[st.def.ability] === res.moveType ? ` · blocked by ${esc(title(st.def.ability))}` : ""}${res.stab !== 1 ? ` · STAB ×${res.stab}` : ""}${st.crit ? " · critical hit" : ""} · power ${res.power} · base damage ${res.base}</p>
       <details class="rolls"><summary>All 16 damage rolls</summary><p class="mono">${res.rolls.join(", ")}</p></details>`;
+    document.getElementById("dmg-share").addEventListener("click", () =>
+      shareLink(pageUrl(`damage/${encodeState(dmgState)}`), `${atk.label} vs ${def.label} · Poké Explorer`));
   }
 
   const refresh = async which => {
