@@ -5,7 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const ROOT = path.join(__dirname, "..");
-const SCRIPTS = ["app.js", "gimmicks.js", "tracker.js", "extras.js", "training.js", "battle.js"];
+const SCRIPTS = ["app.js", "gimmicks.js", "tracker.js", "extras.js", "training.js", "battle.js", "ux.js"];
 
 // Everything the tests need from the site. Top-level `const` values aren't properties of the global object,
 // so they're exported explicitly at the end of the combined script.
@@ -13,7 +13,10 @@ const EXPORTS = [
   "calcStat", "natureMultFor", "damageRolls", "koChance", "koText", "pokeRound", "stageMult", "effectiveness",
   "pokeName", "cleanQuery", "itemName", "moveName", "regionalInfo", "isRegionalForm", "gimmickLabel", "gimmickOf",
   "megaGames", "genderText", "evYield", "suggestRole", "navFor", "chanceBy", "huntOdds", "SHINY", "boxView",
-  "loadTracker", "saveTracker", "toggle", "fromData", "toData", "TRACKER_KEY", "STAT_KEYS", "ROLES", "Z_LOC", "STONE_LOC", "UNLOCK"
+  "loadTracker", "saveTracker", "toggle", "fromData", "toData", "TRACKER_KEY", "STAT_KEYS", "ROLES", "Z_LOC", "STONE_LOC", "UNLOCK",
+  "normalizeText", "editDistance", "buildSearchIndex", "searchIndex", "resultHash", "fmtHeight", "fmtWeight", "encodeState", "decodeState",
+  "mergeKnown", "getFavorites", "toggleFavorite", "isFavorite", "getRecent", "addRecent", "clearRecent", "hintBox", "dismissHint",
+  "neighborsOf", "contrastRatio", "TYPE_COLOR", "typeText", "typeBadge", "SPECIES_BY_ID"
 ];
 
 function fakeElement() {
@@ -36,10 +39,11 @@ function loadSite() {
   };
   const document = {
     getElementById: () => fakeElement(), querySelector: () => null, querySelectorAll: () => [],
-    createElement: () => fakeElement(), body: fakeElement(), documentElement: { dataset: {} }, title: ""
+    createElement: () => fakeElement(), body: fakeElement(), documentElement: { dataset: {} }, title: "",
+    addEventListener() {}
   };
   const sandbox = {
-    console, setTimeout, clearTimeout, localStorage, document,
+    console, setTimeout, clearTimeout, localStorage, document, btoa, atob,
     location: { hash: "", origin: "http://localhost", pathname: "/" },
     history: { replaceState() {} },
     fetch: () => new Promise(() => {}),   // tests never touch the network
