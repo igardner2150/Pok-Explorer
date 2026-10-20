@@ -6,7 +6,7 @@ Poké Explorer is a web service for looking up any Pokémon: its region of origi
 
 ## Running it
 
-No build step or install is needed. Keep the three files in the same folder and open `index.html` in a browser (an internet connection is required for PokéAPI). For a local server instead, run `python -m http.server` in the folder and visit http://localhost:8000.
+No build step or install is needed. Keep all the files below in the same folder and open `index.html` in a browser (an internet connection is required for PokéAPI). For a local server instead, run `python -m http.server` in the folder and visit http://localhost:8000.
 
 | File | Purpose |
 |---|---|
@@ -15,6 +15,7 @@ No build step or install is needed. Keep the three files in the same folder and 
 | `app.js` | API calls, routing, the three layers, regional forms and natures |
 | `tracker.js` | My tracker tab: games owned, caught/shiny Pokémon (list or PC box view), regional and Gigantamax forms, shiny hunt counters (saved in the browser) |
 | `extras.js` | Team builder, Tools tab (compare, type chart, advanced search, Who's That Pokémon?) and Pokémon of the day |
+| `training.js` | Tools: stat calculator with an IV/EV/nature guide, ability search, move search, breeding; the Training & breeding panel on details pages |
 | `gimmicks.js` | Battle gimmicks tab (Mega Evolution, Primal Reversion, Z-Moves, Ultra Burst, Dynamax, Gigantamax, Terastallization) |
 
 ## The three layers
@@ -34,6 +35,11 @@ The tab bar has seven sections: **Regions**, **Regional forms**, **Battle gimmic
 
 - **Team builder** (`#team`) holds up to six Pokémon (forms allowed). It charts how every attacking type hits each member, flags types that threaten three or more members, and lists defending types the team's STAB moves can't hit super effectively. Uses `GET /type/{name}` for all 18 types.
 - **Tools** (`#tools/...`): **Compare** two Pokémon side by side (`#tools/compare/charizard/blastoise`), an interactive 18×18 **Type chart** with a dual-type calculator, **Advanced search** by type, second type, generation, minimum stat and sort order, and **Who's That Pokémon?**, a silhouette quiz with cries, generation filters and a saved best streak.
+  - **Stat calculator** (`#tools/stats/garchomp`): real stats at any level from base stats, IVs (0–31), EVs (0–252, 510 total) and nature, with possible ranges, EV-limit warnings, common spread presets, and a guide explaining IVs, EVs, natures and how older games differ. Uses the Gen 3+ formula: HP = ⌊(2B + IV + ⌊EV/4⌋)·L/100⌋ + L + 10; other stats = ⌊(⌊(2B + IV + ⌊EV/4⌋)·L/100⌋ + 5)·N⌋.
+  - **Abilities** (`#tools/abilities/intimidate`): an ability's effect and every Pokémon that can have it, split into regular and Hidden Ability (`GET /ability/{name}`).
+  - **Moves** (`#tools/moves/earthquake`): a move's type, category, power, accuracy, PP, priority, target and effect, and every Pokémon that can learn it (`GET /move/{name}`).
+  - **Breeding** (`#tools/breeding/eevee`): egg groups, gender ratio, egg cycles, what hatches, every compatible partner by egg group, and a guide to breeding, inheritance and the Masuda Method (`GET /egg-group/{name}`, `GET /evolution-chain/{id}`).
+- Every details page also has a **Training & breeding** panel: EV yield, egg groups, gender ratio, egg cycles, base friendship and growth rate.
 - **My tracker** also has a **Forms** sub-tab for regional and Gigantamax forms, a **Boxes** view of the Pokédex (30-slot PC boxes; click once for caught, twice for shiny), and **Shiny hunts**: pick a Pokémon, game and Shiny Charm, count encounters, and see the chance of having found one by now (1 − (1 − 1/N)ⁿ). Marking a hunt found also marks that Pokémon shiny.
 
 There is also a **Natures** tab (`#natures`, or `#natures/garchomp` for a specific Pokémon) on the home page. You pick a role (fast physical or special attacker, mixed attacker, physical or special wall, Trick Room, fast support) and it recommends natures, explains each pick using the Pokémon's base stats, and shows all 25 natures in a +/− grid (`GET /nature`, `GET /nature/{name}`). Each details page also suggests a role and its best natures.
