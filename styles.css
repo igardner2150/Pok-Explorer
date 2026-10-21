@@ -4153,3 +4153,33 @@ details.guide[open] > summary {
   color: var(--accent);
   text-align: center;
 }
+
+/* Games page */
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+.game-card {
+  display: flex;
+  align-items: center;
+  min-height: 68px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--ink);
+  font: 600 1rem var(--font-display);
+  box-shadow: var(--shadow);
+  transition: transform .15s, border-color .15s;
+}
+.game-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+.game-head {
+  margin-bottom: 18px;
+}
