@@ -145,8 +145,8 @@ async function renderStatCalc(body, query = "garchomp") {
 
 function statGuide() {
   return `
-  <section class="guide">
-    <h2 class="grid-title">How stats work</h2>
+  <details class="guide">
+    <summary><h2 class="grid-title">How stats work: IVs, EVs and natures</h2></summary>
     <p class="lede">Every Pokémon's six stats come from four things: its species' <strong>base stats</strong>, its <strong>IVs</strong>, its <strong>EVs</strong> and its <strong>nature</strong>, scaled by its level. Two Pikachu at the same level can have quite different stats because of the last three.</p>
     <div class="guide-grid">
       <article class="panel">
@@ -191,7 +191,7 @@ function statGuide() {
         </ul>
       </article>
     </div>
-  </section>`;
+  </details>`;
 }
 
 /* ---------- Ability search ---------- */
@@ -420,8 +420,8 @@ async function renderBreeding(body, query) {
 
 function breedingGuide() {
   return `
-  <section class="guide">
-    <h2 class="grid-title">How breeding works</h2>
+  <details class="guide">
+    <summary><h2 class="grid-title">How breeding works</h2></summary>
     <div class="guide-grid">
       <article class="panel">
         <h3 class="guide-title">The basics</h3>
@@ -451,7 +451,7 @@ function breedingGuide() {
         </ul>
       </article>
     </div>
-  </section>`;
+  </details>`;
 }
 
 /* ---------- Details page panel ---------- */
