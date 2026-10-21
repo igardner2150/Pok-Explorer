@@ -55,6 +55,7 @@ The site has four sections, each with its own sub-menu:
   - **Battle gimmicks:** Mega Evolution, Primal Reversion, Z-Moves, Ultra Burst, Dynamax, Gigantamax and Terastallization. For each Pokémon it shows the games each gimmick is in, how stats, types, abilities and moves change, the item needed, and where to get it in each game.
   - **Team builder:** a weakness chart, biggest threats, coverage gaps, and shareable team links.
   - **Team synergy score:** grades the team A–F out of 100 on defensive balance, offensive coverage, role mix, speed and type variety, explains what to fix, and tests 36 popular Pokémon to suggest the swaps that raise the grade the most (one click to try a swap). Empty slots cost 4 points each, and **Auto-complete my team** fills them with the Pokémon that raise the grade most.
+  - **Games:** pick any game from Red/Blue to Scarlet/Violet and see every Pokémon in its Pokédex (split by regional Pokédex, with type, caught and name filters), then build a team for it in one click.
   - **Building for a game:** pick a game (Red/Blue through Scarlet/Violet) and the team builder only accepts and suggests Pokémon from that game's Pokédex. The game is included in shared team links.
   - **Compare teams:** two teams side by side (paste team links or names) with each category's winner, the total, head-to-head type pressure and a shareable link.
   - **Damage calculator:** levels, EVs, natures, stat stages, about 45 common abilities, items, Tera types, weather, critical hits, burn and screens. It shows all 16 damage rolls, % of HP and the odds to KO.
@@ -103,7 +104,7 @@ sudo cp ~/Pok-Explorer/*.html ~/Pok-Explorer/*.css ~/Pok-Explorer/*.js ~/Pok-Exp
 npm test
 ```
 
-72 automated tests (Node's built-in test runner, no dependencies) check:
+73 automated tests (Node's built-in test runner, no dependencies) check:
 
 - **Formulas:** the stat and damage formulas against Bulbapedia's worked examples, KO odds, and abilities, Tera and critical-hit rules.
 - **Names and search:** official spellings, form names, item and move names, and search matching.
