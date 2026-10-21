@@ -49,3 +49,32 @@ test("a game's Pokédexes become sections in Pokédex order, counting each speci
   assert.equal(sections[0].mons[0].id, 906);
   assert.equal(total, 3);   // sprigatito is in both Pokédexes
 });
+
+test("encounter data adds species seen in the game's versions, mapping forms to their species", () => {
+  const ref = (name, id) => ({ name, url: `https://pokeapi.co/api/v2/pokemon/${id}/` });
+  const ver = v => ({ version: { name: v } });
+  const areas = [
+    { pokemon_encounters: [
+      { pokemon: ref("mewtwo", 150), version_details: [ver("red"), ver("blue")] },
+      { pokemon: ref("rattata-alola", 10091), version_details: [ver("sun")] },
+      { pokemon: ref("pikachu", 25), version_details: [ver("yellow")] }
+    ] },
+    null
+  ];
+  const byId = { 150: "mewtwo", 19: "rattata", 25: "pikachu" };
+  const slugs = new Set(["mewtwo", "rattata", "pikachu"]);
+  assert.deepEqual([...site.encounterSpecies(areas, new Set(["red", "blue"]), byId, slugs)], ["mewtwo"]);
+  assert.deepEqual([...site.encounterSpecies(areas, new Set(["sun"]), byId, slugs)], ["rattata"]);
+  assert.equal(site.speciesOfPokemon("tapu-koko", 785, { 785: "tapu-koko" }, new Set()), "tapu-koko");
+});
+
+test("post-game lists only name real, unique species ids", () => {
+  for (const id of ["scarlet-violet", "sword-shield", "bdsp"]) {
+    const list = site.extrasFor(id);
+    assert.ok(list.length > 10, id);
+    assert.equal(new Set(list).size, list.length, id);
+    list.forEach(n => assert.match(n, /^[a-z]+(-[a-z]+)*$/, n));
+  }
+  assert.deepEqual(plain(site.extrasFor("red-blue")), []);
+  assert.ok(site.ENCOUNTER_GAMES.has("platinum"));
+});
