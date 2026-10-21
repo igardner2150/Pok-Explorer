@@ -1995,6 +1995,10 @@ label.check input {
 .quiz-art img.revealed {
   filter: none;
 }
+.quiz-art img.loading {
+  visibility: hidden;
+  transition: none;
+}
 .quiz-result {
   min-height: 1.5em;
   font-weight: 600;
@@ -4107,4 +4111,45 @@ details.guide[open] > summary {
     max-width: 220px;
     margin: 0 auto;
   }
+}
+
+/* Filters that stay set: "Clear filters" link */
+.count-row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.clear-filters {
+  font-size: .88rem;
+  white-space: nowrap;
+}
+
+/* Team builder: game picker and game warnings */
+.team-game {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 12px 0 14px;
+}
+.team-game label {
+  font: 600 .95rem var(--font-display);
+}
+.team-game select {
+  min-width: 240px;
+}
+.team-game-note {
+  margin: 8px 0 14px;
+}
+.slot-warn {
+  margin: 4px 0 0;
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.slot-error {
+  margin: 6px 0 0;
+  font-size: .8rem;
+  color: var(--accent);
+  text-align: center;
 }
