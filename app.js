@@ -1196,15 +1196,22 @@ document.getElementById("global-search").addEventListener("submit", e => {
   input.value = "";
 });
 
+// Resolves once every <script> in index.html has run. On a repeat visit the species list comes back from
+// IndexedDB almost instantly, often before ux.js has finished downloading, so wait for all the scripts first.
+const scriptsReady = new Promise(resolve => {
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", resolve, { once: true });
+  else resolve();
+});
+
 // Every species id (one lightweight request): powers proper display names and the search suggestions.
-const namesReady = get("/pokemon-species?limit=2000").then(d => {
+const namesReady = Promise.all([get("/pokemon-species?limit=2000"), scriptsReady]).then(([d]) => {
   SPECIES_SLUGS = new Set(d.results.map(s => s.name));
   const list = d.results.map(s => ({ name: s.name, id: idFromUrl(s.url) }));
   list.forEach(s => (SPECIES_BY_ID[s.id] = s.name));
   indexSpecies(list);
   document.getElementById("name-suggestions").innerHTML =
     d.results.map(s => `<option value="${s.name}">${esc(pokeName(s.name))}</option>`).join("");
-}).catch(() => {});
+}).catch(err => console.error("Couldn't load the Pokémon name list:", err));
 
 window.addEventListener("hashchange", route);
 // Wait for every script (app.js, gimmicks.js) before the first render.
