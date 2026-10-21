@@ -268,8 +268,8 @@ async function renderTeam(shared) {
       <div>
         <h1>${sharedList ? "Shared team" : "Team builder"}</h1>
         <p class="lede">${sharedList
-          ? "Someone shared this team with you. Save it to make it your own and edit it."
-          : "Pick up to six Pokémon (regional forms work too, e.g. ninetales-alola). The charts show which attacking types your team struggles against and which types your STAB moves can't hit hard."}</p>
+          ? "Someone shared this team. Save it to edit it."
+          : "Pick up to six Pokémon to see your grade, weak spots and suggested swaps."}</p>
       </div>
       <div class="page-actions">
         ${sharedList ? `<button type="button" class="btn" id="team-save">Save as my team</button>` : ""}
@@ -367,8 +367,6 @@ async function renderTeam(shared) {
     const hitters = filled.filter(m => m.types.some(t => effectiveness(td, t, [def]) > 1));
     return { def, best, hitters };
   });
-  const threats = rows.filter(r => r.threat).sort((a, b) => b.weak - a.weak);
-  const gaps = offense.filter(o => o.best <= 1);
 
   const synergyTeam = members.map((m, i) => m && !m.error
     ? { name: m.mon.name, label: monLabel(m.species, m.mon), types: m.types, stats: baseStats(m.mon), id: m.mon.id, slot: i }
@@ -378,19 +376,9 @@ async function renderTeam(shared) {
   out.innerHTML = `
     <div class="sections">
       ${synergyPanel(synergy, !!sharedList)}
-      <section class="panel">
-        <h2>Biggest threats</h2>
-        ${threats.length ? `<ul class="plain">${threats.map(r => `<li>${typeBadge(r.atk)} hits <strong>${r.weak}</strong> of your Pokémon super effectively${r.resist ? `, ${r.resist} resist it` : ", and nothing resists it"}.</li>`).join("")}</ul>`
-          : `<p>No attacking type hits three or more of your Pokémon super effectively. Nice balance.</p>`}
-      </section>
-      <section class="panel">
-        <h2>Coverage gaps</h2>
-        ${gaps.length ? `<p class="muted">Types your team's STAB moves can't hit super effectively:</p><div class="types">${gaps.map(g => typeBadge(g.def)).join("")}</div>
-          <p class="note muted">Give someone a move that covers these, like a coverage TM.</p>`
-          : `<p>Your STAB types hit every type super effectively. Full coverage.</p>`}
-      </section>
-
-      <section class="panel wide">
+      <details class="panel wide more-charts">
+        <summary>Show detailed charts <span class="muted">(every type against every team member)</span></summary>
+      <section class="chart-block">
         <h2>Defensive chart</h2>
         <p class="muted">How much damage each attacking type does to each team member. Red is bad, green is good.</p>
         <div class="table-wrap"><table class="matchup-table">
@@ -403,7 +391,7 @@ async function renderTeam(shared) {
         </table></div>
       </section>
 
-      <section class="panel wide">
+      <section class="chart-block">
         <h2>Offensive coverage (STAB)</h2>
         <p class="muted">For each defending type, which of your Pokémon can hit it super effectively with a move of its own type.</p>
         <div class="table-wrap"><table class="data-table wrap">
@@ -412,6 +400,7 @@ async function renderTeam(shared) {
             <td>${o.hitters.length ? o.hitters.map(m => esc(monLabel(m.species, m.mon))).join(", ") : '<span class="muted">Nobody</span>'}</td></tr>`).join("")}</tbody>
         </table></div>
       </section>
+      </details>
     </div>`;
 
   // Swap suggestions need the candidates' stats and types; they load after the grade is on screen.
@@ -461,7 +450,7 @@ async function renderTeamCompare(aParam = "", bParam = "") {
     <div class="page-head">
       <div>
         <h1>Compare teams</h1>
-        <p class="lede">Put two teams side by side to see which one works together better, category by category. Paste a team link or type up to six names separated by commas.</p>
+        <p class="lede">See which of two teams works together better. Paste a team link or type names.</p>
       </div>
     </div>
     <form class="panel vs-form" id="vs-form">
@@ -547,15 +536,15 @@ async function renderTeamCompare(aParam = "", bParam = "") {
 /* ---------- Tools tab ---------- */
 
 const TOOL_INTRO = {
-  compare: "Put two Pokémon side by side: stats, types, abilities and who hits whom harder.",
+  compare: "Two Pokémon side by side.",
   typechart: "Every type matchup in one chart, plus a calculator for dual types.",
   search: "Find Pokémon by type, generation and minimum stats.",
-  stats: "Work out a Pokémon's exact stats from its level, IVs, EVs and nature, and learn how each one works.",
+  stats: "Exact stats from level, IVs, EVs and nature.",
   abilities: "Look up any ability and every Pokémon that can have it.",
   moves: "Look up any move and every Pokémon that can learn it.",
   items: "Browse every item by bag pocket and category, or look one up directly.",
-  breeding: "Egg groups, compatible partners and what hatches, plus how breeding works.",
-  quiz: "Name the Pokémon from its silhouette. How long can you keep your streak going?"
+  breeding: "Egg groups, compatible partners and what hatches.",
+  quiz: "Name the Pokémon from its silhouette."
 };
 const TOOLS = [["compare", "Compare"], ["typechart", "Type chart"], ["search", "Advanced search"], ["stats", "Stat calculator"],
   ["abilities", "Abilities"], ["moves", "Moves"], ["items", "Items"], ["breeding", "Breeding"], ["quiz", "Who's That Pokémon?"]];
