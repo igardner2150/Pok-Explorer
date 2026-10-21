@@ -118,7 +118,7 @@ async function renderTracker(tab) {
 
   view.innerHTML = `
     <h1>My tracker</h1>
-    <p class="lede">Check off the games you own and the Pokémon you've caught or have shiny. Your progress is saved in this browser on this device; use Export to back it up or move it to another device.</p>
+    <p class="lede">Check off your games, catches and shinies. Saved in this browser.</p>
     ${hintBox("tracker-" + tab)}
     <div id="tracker-body"><p class="status">Loading…</p></div>
     <div class="backup">
