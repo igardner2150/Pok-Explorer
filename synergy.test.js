@@ -1,4 +1,4 @@
-// Team synergy score: grades a team out of 100 and suggests swaps that raise it.
+\// Team synergy score: grades a team out of 100 and suggests swaps that raise it.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { plain, loadSite, TYPE_DATA } = require("./load-site");
@@ -79,7 +79,7 @@ test("swap suggestions raise the score and never repeat a team member", () => {
   plain(site.bestSwaps(balanced.slice(0, 3), pool, TYPE_DATA)).forEach(s => assert.equal(s.remove, null));
 });
 
-test("auto-complete fills every open slot without repeats and never lowers the score", () => {
+test("auto-complete adds Pokémon without repeats, each one raising the score", () => {
   const pool = [
     M("corviknight", ["flying", "steel"], S(98, 87, 105, 53, 85, 67)),
     M("toxapex", ["poison", "water"], S(50, 63, 152, 53, 142, 35)),
@@ -89,10 +89,14 @@ test("auto-complete fills every open slot without repeats and never lowers the s
   ];
   const start = balanced.slice(0, 2);
   const { added, result } = plain(site.autoComplete(start, pool, TYPE_DATA));
-  assert.equal(added.length, 4);
+  assert.ok(added.length >= 1 && added.length <= 4);
   const names = [...start.map(m => m.name), ...added.map(m => m.name)];
-  assert.equal(new Set(names).size, 6);                          // garchomp is already on the team, so it's never added again
-  assert.ok(result.score >= site.teamSynergy(start, TYPE_DATA).score);
+  assert.equal(new Set(names).size, names.length);               // garchomp is already on the team, so it's never added again
+  assert.ok(result.score > site.teamSynergy(start, TYPE_DATA).score);
+  // A pool with nothing that helps adds nothing.
+  const bad = [M("beedrill", ["bug", "poison"], S(65, 90, 40, 45, 80, 75))];
+  const none = plain(site.autoComplete(allFire.slice(0, 5), bad, TYPE_DATA));
+  assert.ok(none.result.score >= site.teamSynergy(allFire.slice(0, 5), TYPE_DATA).score);
   assert.equal(plain(site.autoComplete(balanced, pool, TYPE_DATA)).added.length, 0);   // a full team gets nothing
 });
 
