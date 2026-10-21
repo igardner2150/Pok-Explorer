@@ -296,27 +296,18 @@ async function renderRegions() {
     <section class="home-hero">
       <div class="home-intro">
         <h1>Look up any Pokémon</h1>
-        <p class="lede">Stats, typing, evolutions, moves, forms and battle gimmicks for all 1,025 Pokémon, plus tools for building teams and tracking your collection.</p>
+        <p class="lede">Stats, typing, evolutions and moves for all 1,025 Pokémon.</p>
         <form class="hero-search" id="hero-search" role="search">
           <label class="visually-hidden" for="hero-input">Pokémon name or Pokédex number</label>
           <input id="hero-input" type="search" placeholder="Search Pokémon, moves, abilities or items" autocomplete="off">
           <button type="submit" class="btn">Search</button>
         </form>
-        <nav class="quick-links" aria-label="Popular tools">
-          <a href="#team"><strong>Team builder</strong><span>Weaknesses and coverage</span></a>
-          <a href="#damage"><strong>Damage calculator</strong><span>Rolls, % HP and KO odds</span></a>
-          <a href="#tools/stats"><strong>Stat calculator</strong><span>IVs, EVs and natures</span></a>
-          <a href="#tools/typechart"><strong>Type chart</strong><span>Every matchup</span></a>
-          <a href="#tracker/hunts"><strong>Shiny hunts</strong><span>Count encounters</span></a>
-          <a href="#tools/quiz"><strong>Who's That Pokémon?</strong><span>Test yourself</span></a>
-        </nav>
       </div>
       <div id="home-extras" class="home-potd"></div>
     </section>
     <section id="home-mine" class="home-mine" aria-label="Your Pokémon"></section>
     <div class="section-head">
-      <h2>Choose a region</h2>
-      <p class="muted">Every Pokémon debuted in one of these regions.</p>
+      <h2>Browse by region</h2>
     </div>
     <div class="region-grid">
       ${regions.map(r => {
@@ -373,7 +364,7 @@ async function renderRegion(name) {
     <h1>${esc(title(name))}</h1>
     <p class="lede">${region.main_generation
       ? `Pokémon that debuted in ${genLabel(region.main_generation.name)}.`
-      : `Pokémon listed in the ${esc(title(region.pokedexes[0]?.name || name))} Pokédex.`} Select one for its full profile.</p>
+      : `Pokémon listed in the ${esc(title(region.pokedexes[0]?.name || name))} Pokédex.`}</p>
     ${forms.length ? `
       <div class="sub-tabs" role="tablist" aria-label="${esc(title(name))} lists">
         <button type="button" role="tab" class="sub-tab active" aria-selected="true" data-list="native">Native Pokémon (${mons.length})</button>
@@ -514,7 +505,7 @@ async function renderRegionalForms(region) {
 
   view.innerHTML = `
     <h1>Regional forms</h1>
-    <p class="lede">Some Pokémon adapted to a new region and changed their typing, stats, abilities and look. Pick a region to see the forms that live there.</p>
+    <p class="lede">Pokémon that changed their type and look in a new region.</p>
     <div class="region-grid">
       ${Object.keys(REGIONAL).map(r => {
         const list = forms.filter(f => f.region === r);
@@ -537,7 +528,7 @@ async function renderFormRegion(region) {
 
   view.innerHTML = `
     <h1>${REGIONAL[region]} forms</h1>
-    <p class="lede">Pokémon that look and battle differently in ${esc(title(region))}. Select one for its full profile, or <a class="text-link" href="#region/${region}">see every Pokémon from ${esc(title(region))}</a>.</p>
+    <p class="lede">Forms native to ${esc(title(region))}. <a class="text-link" href="#region/${region}">All ${esc(title(region))} Pokémon</a></p>
     <div class="list-tools">
       <label class="visually-hidden" for="form-filter">Filter ${REGIONAL[region]} forms</label>
       <input id="form-filter" type="search" placeholder="Filter by name…" autocomplete="off">
@@ -809,7 +800,6 @@ async function renderPokemon(query, tab) {
           <div><dt>Generation</dt><dd>${genLabel(species.generation.name).replace("Generation", "Gen")}</dd></div>
           <div><dt>Height</dt><dd>${heightSpan(mon.height)}</dd></div>
           <div><dt>Weight</dt><dd>${weightSpan(mon.weight)}</dd></div>
-          <div><dt>Base EXP</dt><dd>${mon.base_experience ?? "—"}</dd></div>
           <div><dt>Capture rate</dt><dd>${species.capture_rate} / 255</dd></div>
         </dl>
         ${unitToggle()}
@@ -1031,7 +1021,7 @@ async function renderNatures(query) {
 
   view.innerHTML = `
     <h1>Natures</h1>
-    <p class="lede">Every Pokémon can have any of the 25 natures. A nature raises one stat by 10% and lowers another by 10% (HP is never affected). Choose what you want the Pokémon to do, and optionally enter a Pokémon to get picks based on its base stats.</p>
+    <p class="lede">Pick a role (or a Pokémon) to see which natures fit best.</p>
 
     <form class="nature-pokemon" id="nature-form">
       <label for="nature-input">Pokémon</label>
@@ -1109,8 +1099,8 @@ const SECTIONS = [
     ["search", "Advanced search", "#tools/search"], ["stats", "Stat calculator", "#tools/stats"],
     ["abilities", "Abilities", "#tools/abilities"], ["moves", "Moves", "#tools/moves"], ["items", "Items", "#tools/items"],
     ["breeding", "Breeding", "#tools/breeding"], ["quiz", "Who's That Pokémon?", "#tools/quiz"]] },
-  { id: "tracker", items: [["games", "My games", "#tracker/games", "games-count"], ["pokedex", "Pokédex", "#tracker/pokedex", "dex-count"],
-    ["forms", "Forms", "#tracker/forms", "forms-count"], ["hunts", "Shiny hunts", "#tracker/hunts", "hunts-count"]] }
+  { id: "tracker", items: [["games", "My games", "#tracker/games"], ["pokedex", "Pokédex", "#tracker/pokedex"],
+    ["forms", "Forms", "#tracker/forms"], ["hunts", "Shiny hunts", "#tracker/hunts"]] }
 ];
 
 function navFor(page, param) {
@@ -1188,13 +1178,6 @@ async function route() {
   }
 }
 
-document.getElementById("global-search").addEventListener("submit", e => {
-  e.preventDefault();
-  const input = document.getElementById("search-input");
-  const q = input.value.trim().toLowerCase().replace(/^#?0*(?=\d)/, "").replace(/[.':]/g, "").replace(/♀/g, "-f").replace(/♂/g, "-m").replace(/é/g, "e").replace(/\s+/g, "-");
-  if (q) location.hash = `pokemon/${q}`;
-  input.value = "";
-});
 
 // Resolves once every <script> in index.html has run. On a repeat visit the species list comes back from
 // IndexedDB almost instantly, often before ux.js has finished downloading, so wait for all the scripts first.
