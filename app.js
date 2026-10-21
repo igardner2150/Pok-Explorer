@@ -386,7 +386,7 @@ async function renderRegion(name) {
           <option value="bst">Base stat total (high to low)</option><option value="bst-asc">Base stat total (low to high)</option>
         </select></div>
     </div>
-    <p class="count" id="count" aria-live="polite"></p>
+    <div class="count-row"><p class="count" id="count" aria-live="polite"></p>${clearFiltersBtn()}</div>
     <div class="mon-grid" id="mon-grid"></div>`;
 
   const lists = { native: mons, forms };
@@ -446,6 +446,8 @@ async function renderRegion(name) {
     current = btn.dataset.list;
     draw();
   }));
+  // Filters stay set for this region until the visitor clears them.
+  keepFilters(`region-${name}`, ["filter", "f-type", "f-show", "f-sort"], { clearBtn: $("clear-filters"), onClear: draw });
   draw();
 }
 
@@ -533,6 +535,7 @@ async function renderFormRegion(region) {
       <label class="visually-hidden" for="form-filter">Filter ${REGIONAL[region]} forms</label>
       <input id="form-filter" type="search" placeholder="Filter by name…" autocomplete="off">
       <span class="count" id="count">${forms.length} forms</span>
+      ${clearFiltersBtn()}
     </div>
     <div class="mon-grid">${forms.map(formCard).join("")}</div>`;
 
@@ -544,6 +547,8 @@ async function renderFormRegion(region) {
     cards.forEach(c => { const hit = !q || c.dataset.key.includes(q); c.hidden = !hit; if (hit) shown++; });
     document.getElementById("count").textContent = q ? `${shown} of ${cards.length} forms` : `${cards.length} forms`;
   });
+  const apply = () => filter.dispatchEvent(new Event("input"));
+  if (keepFilters(`forms-${region}`, ["form-filter"], { clearBtn: document.getElementById("clear-filters"), onClear: apply })) apply();
 }
 
 /* ---------- Layer 3: Pokémon details ---------- */
@@ -956,7 +961,13 @@ async function renderPokemon(query, tab) {
     movesLoaded = true;
     const select = document.getElementById("vg-select");
     const box = document.getElementById("moves-body");
-    select.addEventListener("change", () => renderMoves(byVg, select.value, box));
+    // Remember the last game picked, and use it on every Pokémon that appears in it.
+    const lastVg = savedFilters("moves-game").vg;
+    if (lastVg && byVg[lastVg]) select.value = lastVg;
+    select.addEventListener("change", () => {
+      storeFilters("moves-game", { vg: select.value }, { vg: "" });
+      renderMoves(byVg, select.value, box);
+    });
     renderMoves(byVg, select.value, box);
   };
   wireDetailTabs(mon.name, tab => { updateDexNavTab(tab); if (tab === "moves") loadMoves(); });
@@ -1163,7 +1174,7 @@ async function route() {
     else if (page === "forms") await renderRegionalForms(param);
     else if (page === "gimmicks") await renderGimmicks(param);
     else if (page === "tracker") await renderTracker(param);
-    else if (page === "team") await renderTeam(param);
+    else if (page === "team") await renderTeam(param, rest[0]);
     else if (page === "teamvs") await renderTeamCompare(param, rest[0]);
     else if (page === "damage") await renderDamage(param);
     else if (page === "type" && param) await renderTypePage(param);
