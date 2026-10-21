@@ -80,6 +80,7 @@ sequenceDiagram
 | `#gimmicks`, `#gimmicks/charizard` | Battle gimmicks | `renderGimmicks` |
 | `#team`, `#team/a,b,c` | Team builder, shared team | `renderTeam` |
 | `#teamvs/a,b,c/d,e,f` | Compare two teams | `renderTeamCompare` |
+| `#games`, `#games/scarlet-violet` | Games, and every Pokémon in one game | `renderGames` |
 | `#damage`, `#damage/{settings}` | Damage calculator (settings shared in the link) | `renderDamage` |
 | `#type/fire` | Type page: matchups and every Pokémon of that type | `renderTypePage` |
 | `#natures`, `#natures/garchomp` | Natures | `renderNatures` |
