@@ -55,6 +55,7 @@ The site has four sections, each with its own sub-menu:
   - **Battle gimmicks:** Mega Evolution, Primal Reversion, Z-Moves, Ultra Burst, Dynamax, Gigantamax and Terastallization. For each Pokémon it shows the games each gimmick is in, how stats, types, abilities and moves change, the item needed, and where to get it in each game.
   - **Team builder:** a weakness chart, biggest threats, coverage gaps, and shareable team links.
   - **Team synergy score:** grades the team A–F out of 100 on defensive balance, offensive coverage, role mix, speed and type variety, explains what to fix, and tests 36 popular Pokémon to suggest the swaps that raise the grade the most (one click to try a swap). Empty slots cost 4 points each, and **Auto-complete my team** fills them with the Pokémon that raise the grade most.
+  - **Building for a game:** pick a game (Red/Blue through Scarlet/Violet) and the team builder only accepts and suggests Pokémon from that game's Pokédex. The game is included in shared team links.
   - **Compare teams:** two teams side by side (paste team links or names) with each category's winner, the total, head-to-head type pressure and a shareable link.
   - **Damage calculator:** levels, EVs, natures, stat stages, about 45 common abilities, items, Tera types, weather, critical hits, burn and screens. It shows all 16 damage rolls, % of HP and the odds to KO.
   - **Natures:** recommended natures by role, with explanations based on the Pokémon's stats.
@@ -70,6 +71,7 @@ Everyday conveniences:
 - **Share buttons** on Pokémon pages, comparisons and damage calculations (the calculator's settings travel in the link).
 - **Metric or imperial** height and weight (US English browsers start in feet and pounds).
 - **First-time tips** in the tracker and team builder, and each main tab remembers the last page you used in it.
+- **Filters stay set** (region lists, regional forms, type pages, the tracker Pokédex, Advanced search and the Moves tab's game) until you press **Clear filters**.
 - **Readable everywhere:** every type badge and text color meets the WCAG AA contrast ratio (4.5:1), checked by a test.
 - **Recovers from problems:** a Try again button when PokéAPI can't be reached, older saved data used when offline, and "Did you mean…" suggestions for misspelled Pokémon.
 - Official spellings (Mr. Mime, Farfetch'd, Nidoran♀), a light/dark/auto theme, loading placeholders, a phone-friendly layout, per-page tab titles, and link previews.
@@ -101,7 +103,7 @@ sudo cp ~/Pok-Explorer/*.html ~/Pok-Explorer/*.css ~/Pok-Explorer/*.js ~/Pok-Exp
 npm test
 ```
 
-68 automated tests (Node's built-in test runner, no dependencies) check:
+72 automated tests (Node's built-in test runner, no dependencies) check:
 
 - **Formulas:** the stat and damage formulas against Bulbapedia's worked examples, KO odds, and abilities, Tera and critical-hit rules.
 - **Names and search:** official spellings, form names, item and move names, and search matching.
