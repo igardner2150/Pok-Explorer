@@ -34,3 +34,18 @@ test("filters are saved while set and forgotten once back to their defaults", ()
   assert.deepEqual(plain(site.savedFilters("region-kanto")), {});
   assert.equal(JSON.parse(localStorage.getItem("pokeExplorerFilters"))["region-kanto"], undefined);
 });
+
+test("a game's Pokédexes become sections in Pokédex order, counting each species once", () => {
+  const entry = (num, name, id) => ({ entry_number: num, pokemon_species: { name, url: `https://pokeapi.co/api/v2/pokemon-species/${id}/` } });
+  const dexes = [
+    { name: "paldea", names: [{ language: { name: "en" }, name: "Paldea" }], pokemon_entries: [entry(2, "fuecoco", 909), entry(1, "sprigatito", 906)] },
+    { name: "kitakami", names: [], pokemon_entries: [entry(1, "spinarak", 167), entry(2, "sprigatito", 906)] },
+    { name: "empty", names: [], pokemon_entries: [] },
+    null
+  ];
+  const { sections, total } = plain(site.gameDexSections(dexes));
+  assert.deepEqual(sections.map(s => s.label), ["Paldea", "Kitakami"]);
+  assert.deepEqual(sections[0].mons.map(m => m.name), ["sprigatito", "fuecoco"]);
+  assert.equal(sections[0].mons[0].id, 906);
+  assert.equal(total, 3);   // sprigatito is in both Pokédexes
+});
