@@ -193,8 +193,8 @@ function mergeKnown(target, source) {
 
 const HINTS_KEY = "pokeExplorerHints";
 const HINTS = {
-  team: "Add up to six Pokémon and the charts fill in as you go. Red rows in the defensive chart are attack types that hit several of your Pokémon hard; the coverage table shows types your moves can't hit well. Use <strong>Share this team</strong> to send it to a friend.",
-  "tracker-games": "Check off the games you own. They're marked in every shiny odds table and listed first when you start a shiny hunt. Everything saves in this browser; use <strong>Export progress</strong> at the bottom to back it up.",
+  team: "Your grade updates as you add Pokémon. Try <strong>Auto-complete</strong> to fill empty slots, or a suggested swap to raise the grade.",
+  "tracker-games": "Games you own are highlighted in shiny odds tables. Use <strong>Export progress</strong> at the bottom to back up.",
   "tracker-pokedex": "Tick <strong>Caught</strong> or <strong>Shiny</strong> for each Pokémon, or switch to <strong>Boxes</strong> and click a slot: once for caught, twice for shiny. Pokémon pages have the same checkboxes.",
   "tracker-forms": "Regional and Gigantamax forms are tracked separately from the main Pokédex, so you can aim for a complete form collection too.",
   "tracker-hunts": "Start a hunt, then tap <strong>+1</strong> for every encounter, egg or reset. The bar shows how you're doing against the odds, and <strong>Found it!</strong> marks the Pokémon shiny in your Pokédex."
@@ -566,10 +566,9 @@ function contrastRatio(a, b) {
 }
 
 /* =========================================================================
-   Start-up: search boxes in the header and pages
+   Start-up: search boxes on pages
    ========================================================================= */
 
-attachSearch(document.getElementById("search-input"), { mode: "all" });
 if (typeof MutationObserver !== "undefined") {
   new MutationObserver(() => {
     enhancePokemonInputs(view);
