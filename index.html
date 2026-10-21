@@ -43,24 +43,19 @@
         <span class="brand-lens" aria-hidden="true"></span>
         <span class="brand-name">Poké Explorer</span>
       </a>
-      <form class="search" id="global-search" role="search">
-        <label class="visually-hidden" for="search-input">Search Pokémon, moves, abilities and items</label>
-        <input id="search-input" type="search" placeholder="Search Pokémon, moves, abilities, items…" autocomplete="off" list="name-suggestions">
-        <datalist id="name-suggestions"></datalist>
-        <button type="submit">Search</button>
-      </form>
+      <nav class="tabs" aria-label="Main sections">
+        <div class="tabs-inner">
+          <a href="#" data-tab="pokedex">Pokédex</a>
+          <a href="#gimmicks" data-tab="battle">Battle</a>
+          <a href="#tools" data-tab="tools">Tools</a>
+          <a href="#tracker" data-tab="tracker">My tracker</a>
+        </div>
+      </nav>
       <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Color theme"></button>
     </div>
   </header>
-
-  <nav class="tabs" aria-label="Main sections">
-    <div class="tabs-inner">
-      <a href="#" data-tab="pokedex">Pokédex</a>
-      <a href="#gimmicks" data-tab="battle">Battle</a>
-      <a href="#tools" data-tab="tools">Tools</a>
-      <a href="#tracker" data-tab="tracker">My tracker</a>
-    </div>
-  </nav>
+  <!-- Pokémon names for the team builder's slot inputs; filled in by app.js -->
+  <datalist id="name-suggestions"></datalist>
   <nav class="subnav" id="subnav" aria-label="Section pages"></nav>
 
   <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
@@ -70,13 +65,10 @@
   </main>
 
   <footer class="foot">
-    <div class="foot-inner">
-      <div>
-        <strong class="foot-brand">Poké Explorer</strong>
-        <p>Built by Jaden Stokes &amp; Ian Gardner. Data from <a href="https://pokeapi.co" target="_blank" rel="noopener">PokéAPI</a>.</p>
-      </div>
-      <p class="foot-legal">Pokémon and all related names are trademarks of Nintendo, Creatures Inc. and GAME FREAK. This is a fan project and is not affiliated with them.</p>
-    </div>
+    <p class="foot-inner">
+      <strong>Poké Explorer</strong> · Jaden Stokes &amp; Ian Gardner · Data from <a href="https://pokeapi.co" target="_blank" rel="noopener">PokéAPI</a>
+      <span class="foot-legal">Fan project, not affiliated with Nintendo, Creatures Inc. or GAME FREAK.</span>
+    </p>
   </footer>
 
   <script src="app.js"></script>
