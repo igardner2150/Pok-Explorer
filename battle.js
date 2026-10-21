@@ -170,7 +170,7 @@ async function renderDamage(code) {
   setCrumbs([{ label: "Battle", href: "#gimmicks" }, { label: "Damage calculator" }]);
   view.innerHTML = `
     <h1>Damage calculator</h1>
-    <p class="lede">Pick an attacker, a move and a defender to see exactly how much damage it does, as a range and as a percentage of HP, and how many hits it takes to knock out.</p>
+    <p class="lede">Attacker, move and defender in; damage range and KO odds out.</p>
     ${loadingBlock()}`;
   const [natures, typeData] = await Promise.all([getNatures(), allTypeData()]);
   const st = dmgState;
@@ -184,7 +184,7 @@ async function renderDamage(code) {
 
   view.innerHTML = `
     <h1>Damage calculator</h1>
-    <p class="lede">Pick an attacker, a move and a defender to see exactly how much damage it does, as a range and as a percentage of HP, and how many hits it takes to knock out.</p>
+    <p class="lede">Attacker, move and defender in; damage range and KO odds out.</p>
 
     <div class="dmg-result panel" id="dmg-result" aria-live="polite">${loadingBlock("Calculating…")}</div>
 
