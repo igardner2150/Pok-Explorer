@@ -1103,7 +1103,7 @@ async function renderNatures(query) {
 
 // Four main sections, each with its own sub-menu. Routes are unchanged so old links and bookmarks still work.
 const SECTIONS = [
-  { id: "pokedex", items: [["regions", "Regions", "#"], ["forms", "Regional forms", "#forms"]] },
+  { id: "pokedex", items: [["regions", "Regions", "#"], ["games", "Games", "#games"], ["forms", "Regional forms", "#forms"]] },
   { id: "battle", items: [["gimmicks", "Battle gimmicks", "#gimmicks"], ["team", "Team builder", "#team"],
     ["teamvs", "Compare teams", "#teamvs"], ["damage", "Damage calculator", "#damage"], ["natures", "Natures", "#natures"]] },
   { id: "tools", items: [["compare", "Compare", "#tools/compare"], ["typechart", "Type chart", "#tools/typechart"],
@@ -1120,6 +1120,7 @@ function navFor(page, param) {
   if (page === "tools") return ["tools", param || "compare"];
   if (page === "tracker") return ["tracker", param || "games"];
   if (page === "forms") return ["pokedex", "forms"];
+  if (page === "games") return ["pokedex", "games"];
   if (page === "pokemon" || page === "region") return ["pokedex", page === "region" ? "regions" : null];
   return ["pokedex", "regions"];
 }
@@ -1172,6 +1173,7 @@ async function route() {
     else if (page === "pokemon" && param) await renderPokemon(param, rest[0]);
     else if (page === "natures") await renderNatures(param);
     else if (page === "forms") await renderRegionalForms(param);
+    else if (page === "games") await renderGames(param);
     else if (page === "gimmicks") await renderGimmicks(param);
     else if (page === "tracker") await renderTracker(param);
     else if (page === "team") await renderTeam(param, rest[0]);
