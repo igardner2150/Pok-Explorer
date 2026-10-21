@@ -40,11 +40,11 @@ Sprites and artwork come from PokéAPI's sprite repository. Responses are cached
 
 | Layer | Route | What it shows |
 |---|---|---|
-| **a) List of regions** | `#` | Every region as a card (Kanto through Paldea). The home page also has a search box, quick links and a Pokémon of the day. |
+| **a) List of regions** | `#` | Every region as a card (Kanto through Paldea). The home page also has the search box and a Pokémon of the day. |
 | **b) Pokémon from the selected region** | `#region/kanto` | Every Pokémon that debuted there, with sprite and Pokédex number, a filter box and a *Regional forms* sub-tab |
 | **c) Details of the selected Pokémon** | `#pokemon/charizard` | Tabs for **Overview** (stats, abilities, type matchups), **Evolution & forms**, **Moves** (per game, with levels), **Training & breeding** (natures, EV yield, egg groups) and **Games & shiny** (games, wild locations, shiny odds) |
 
-The search bar jumps straight to Layer 3 from anywhere, **previous / next** buttons (or the ← → keys) step through the Pokédex, breadcrumbs lead back up, and every page has its own link.
+The home page search jumps straight to Layer 3, **previous / next** buttons (or the ← → keys) step through the Pokédex, breadcrumbs lead back up, and every page has its own link.
 
 ## Features
 
