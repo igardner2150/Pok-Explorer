@@ -1,4 +1,4 @@
-\// Team synergy score: grades a team out of 100 and suggests swaps that raise it.
+// Team synergy score: grades a team out of 100 and suggests swaps that raise it.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { plain, loadSite, TYPE_DATA } = require("./load-site");
