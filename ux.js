@@ -17,6 +17,52 @@ function writeJSON(key, value) {
 }
 
 /* =========================================================================
+   Filters that stay set until the visitor clears them
+   ========================================================================= */
+
+const FILTERS_KEY = "pokeExplorerFilters";
+
+// Saved values for one page's filters, or {} if none were saved.
+const savedFilters = key => readJSON(FILTERS_KEY, {})[key] || {};
+
+// Stores a page's filter values; drops the entry when every value is back to its default.
+function storeFilters(key, values, defaults) {
+  const all = readJSON(FILTERS_KEY, {});
+  const changed = Object.keys(defaults).some(k => values[k] !== defaults[k]);
+  if (changed) all[key] = values; else delete all[key];
+  writeJSON(FILTERS_KEY, all);
+  return changed;
+}
+
+// Restores the saved values of these form controls, saves every change, and wires a "Clear filters" button.
+// The defaults are whatever the controls held before restoring. Returns true if any filter is active.
+function keepFilters(key, ids, { clearBtn, onClear } = {}) {
+  const els = ids.map(id => document.getElementById(id)).filter(Boolean);
+  if (!els.length) return false;
+  const read = el => (el.type === "checkbox" ? el.checked : el.value);
+  const write = (el, v) => {
+    if (el.type === "checkbox") el.checked = !!v;
+    else if (el.tagName !== "SELECT" || [...el.options].some(o => o.value === v)) el.value = v;
+  };
+  const defaults = Object.fromEntries(els.map(el => [el.id, read(el)]));
+  const saved = savedFilters(key);
+  els.forEach(el => { if (el.id in saved) write(el, saved[el.id]); });
+  const save = () => {
+    const active = storeFilters(key, Object.fromEntries(els.map(el => [el.id, read(el)])), defaults);
+    if (clearBtn) clearBtn.hidden = !active;
+    return active;
+  };
+  els.forEach(el => { el.addEventListener("input", save); el.addEventListener("change", save); });
+  if (clearBtn) clearBtn.addEventListener("click", () => {
+    els.forEach(el => write(el, defaults[el.id]));
+    save();
+    if (onClear) onClear();
+  });
+  return save();
+}
+const clearFiltersBtn = (id = "clear-filters") => `<button type="button" class="link-btn clear-filters" id="${id}" hidden>Clear filters</button>`;
+
+/* =========================================================================
    Favorites and recently viewed
    ========================================================================= */
 
@@ -377,7 +423,10 @@ function attachSearch(input, { mode = "all", onPick } = {}) {
   }
 
   function render() {
-    results = searchIndex(SEARCH_INDEX, input.value, { kinds });
+    // A page can limit the suggestions (the team builder only offers Pokémon from the chosen game).
+    results = input.searchFilter
+      ? searchIndex(SEARCH_INDEX, input.value, { kinds, limit: 60 }).filter(input.searchFilter).slice(0, 8)
+      : searchIndex(SEARCH_INDEX, input.value, { kinds });
     if (!input.value.trim()) return close();
     if (!results.length) {
       pop.innerHTML = `<li class="search-empty" role="presentation">No matches for “${esc(input.value.trim())}”</li>`;
@@ -529,6 +578,7 @@ async function renderTypePage(type) {
       <input id="type-filter" type="search" placeholder="Filter by name or number…" autocomplete="off">
       <label class="check"><input type="checkbox" id="type-forms"> Include forms</label>
       <span class="count" id="type-count"></span>
+      ${clearFiltersBtn()}
     </div>
     <div class="mon-grid" id="type-grid"></div>`;
 
@@ -547,6 +597,7 @@ async function renderTypePage(type) {
   };
   filter.addEventListener("input", draw);
   withForms.addEventListener("change", draw);
+  keepFilters(`type-${type}`, ["type-filter", "type-forms"], { clearBtn: document.getElementById("clear-filters"), onClear: draw });
   draw();
 }
 
