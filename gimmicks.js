@@ -528,7 +528,7 @@ async function renderGimmickOverview() {
 
   view.innerHTML = `
     <h1>Battle gimmicks</h1>
-    <p class="lede">Each generation added its own once-per-battle power-up. Pick one below, or look up a Pokémon to see which gimmicks it can use in each game, what changes about its stats and moves, and what you need to unlock it.</p>
+    <p class="lede">Once-per-battle power-ups from Mega Evolution to Terastallization. Look up a Pokémon to see what it can use.</p>
     ${gimmickSearchForm("")}
     ${gimmickTabs(GIMMICKS.map(g => g.id), gimmickTab)}
     ${GIMMICKS.map(g => `
