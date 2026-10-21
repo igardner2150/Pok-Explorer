@@ -346,6 +346,109 @@ async function swapPoolFor(species) {
   return mons.filter(Boolean).map(mon => ({ name: mon.name, label: pokeName(mon.name), types: mon.types.map(t => t.type.name), stats: baseStats(mon), id: mon.id }));
 }
 
+/* ---------- Games: every Pokémon in a game (#games, #games/scarlet-violet) ---------- */
+
+// Turns PokéAPI Pokédex responses into sections of { name, id, num } in Pokédex order.
+// Empty Pokédexes are dropped; `total` counts each species once even if it's in several sections.
+function gameDexSections(dexes) {
+  const sections = dexes.filter(d => d && d.pokemon_entries.length).map(d => ({
+    key: d.name,
+    label: english(d.names) || title(d.name),
+    mons: d.pokemon_entries.map(e => ({ name: e.pokemon_species.name, id: idFromUrl(e.pokemon_species.url), num: e.entry_number }))
+      .sort((a, b) => a.num - b.num)
+  }));
+  const total = new Set(sections.flatMap(s => s.mons.map(m => m.name))).size;
+  return { sections, total };
+}
+
+async function renderGames(gameId) {
+  const game = TEAM_GAMES.find(g => g[0] === gameId);
+  if (!game) {
+    setCrumbs([{ label: "Pokédex", href: "#" }, { label: "Games" }]);
+    view.innerHTML = `
+      <h1>Games</h1>
+      <p class="lede">Pick a game to see every Pokémon in its Pokédex.</p>
+      <div class="game-grid">
+        ${TEAM_GAMES.map(([id, label]) => `<a class="game-card" href="#games/${id}"><span>${esc(label)}</span></a>`).join("")}
+      </div>`;
+    return;
+  }
+
+  const [id, label, groups] = game;
+  setCrumbs([{ label: "Pokédex", href: "#" }, { label: "Games", href: "#games" }, { label }]);
+  view.innerHTML = `<h1>${esc(label)}</h1>${loadingBlock("Loading this game's Pokédex…")}`;
+  const vgs = (await Promise.all(groups.map(vg => get(`/version-group/${vg}`).catch(() => null)))).filter(Boolean);
+  const dexes = await Promise.all(vgs.flatMap(v => v.pokedexes.map(d => get(d.url).catch(() => null))));
+  const { sections, total } = gameDexSections(dexes);
+  if (!sections.length) {
+    view.innerHTML = `<h1>${esc(label)}</h1><p class="lede">PokéAPI doesn't have a Pokédex for this game yet.</p><p><a class="text-link" href="#games">All games</a></p>`;
+    return;
+  }
+
+  view.innerHTML = `
+    <div class="page-head game-head">
+      <div>
+        <h1>${esc(label)}</h1>
+        <p class="lede">${total} Pokémon in this game's Pokédex${sections.length > 1 ? `, across ${sections.length} Pokédexes` : ""}.</p>
+      </div>
+      <div class="page-actions"><button type="button" class="btn ghost" id="game-team">Build a team for this game</button></div>
+    </div>
+    ${sections.length > 1 ? `
+      <div class="sub-tabs" role="tablist" aria-label="Pokédex">
+        ${sections.map((s, i) => `<button type="button" role="tab" class="sub-tab ${i ? "" : "active"}" aria-selected="${!i}" data-dex="${i}">${esc(s.label)} (${s.mons.length})</button>`).join("")}
+      </div>` : ""}
+    <div class="list-tools region-tools">
+      <div class="field grow"><label for="g-filter">Search</label>
+        <input id="g-filter" type="search" placeholder="Name or number…" autocomplete="off"></div>
+      <div class="field"><label for="g-type">Type</label>
+        <select id="g-type"><option value="">Any type</option>${ALL_TYPES.map(t => `<option value="${t}">${title(t)}</option>`).join("")}</select></div>
+      <div class="field"><label for="g-show">Show</label>
+        <select id="g-show"><option value="all">All</option><option value="caught">Caught</option><option value="missing">Not caught</option><option value="shiny">Shiny</option></select></div>
+    </div>
+    <div class="count-row"><p class="count" id="g-count" aria-live="polite"></p>${clearFiltersBtn()}</div>
+    <div class="mon-grid" id="g-grid"></div>`;
+
+  document.getElementById("game-team").addEventListener("click", () => { saveTeamGame(id); location.hash = "team"; });
+  const $ = el => document.getElementById(el);
+  const typeSets = new Map();
+  let current = 0, drawId = 0;
+
+  async function draw() {
+    const run = ++drawId;
+    const q = normalizeText($("g-filter").value.replace(/^#?0*/, ""));
+    const type = $("g-type").value, show = $("g-show").value;
+    let list = sections[current].mons;
+    if (type) {
+      if (!typeSets.has(type)) typeSets.set(type, new Set((await get(`/type/${type}`)).pokemon.map(p => idFromUrl(p.pokemon.url))));
+      if (run !== drawId) return;   // a newer draw started while this one waited
+      list = list.filter(m => typeSets.get(type).has(m.id));
+    }
+    if (q) list = list.filter(m => normalizeText(pokeName(m.name)).includes(q) || String(m.num).startsWith(q) || String(m.id).startsWith(q));
+    if (show === "caught") list = list.filter(m => tracker.caught.has(m.id));
+    if (show === "missing") list = list.filter(m => !tracker.caught.has(m.id));
+    if (show === "shiny") list = list.filter(m => tracker.shiny.has(m.id));
+    const all = sections[current].mons.length;
+    $("g-count").textContent = list.length === all ? `${all} Pokémon` : `${list.length} of ${all} Pokémon`;
+    $("g-grid").innerHTML = list.map(m => `
+      <a class="mon-card" href="#pokemon/${m.name}">
+        ${spriteImg(m.id)}
+        <span class="num">#${String(m.num).padStart(3, "0")}</span>
+        <span class="name">${esc(pokeName(m.name))}</span>
+        ${trackBadges(m.id)}
+      </a>`).join("") || `<p class="muted empty-note">No Pokémon match these filters.</p>`;
+  }
+
+  $("g-filter").addEventListener("input", draw);
+  ["g-type", "g-show"].forEach(f => $(f).addEventListener("change", draw));
+  view.querySelectorAll("[data-dex]").forEach(btn => btn.addEventListener("click", () => {
+    view.querySelectorAll("[data-dex]").forEach(b => { const on = b === btn; b.classList.toggle("active", on); b.setAttribute("aria-selected", on); });
+    current = Number(btn.dataset.dex);
+    draw();
+  }));
+  keepFilters(`game-${id}`, ["g-filter", "g-type", "g-show"], { clearBtn: $("clear-filters"), onClear: draw });
+  draw();
+}
+
 /* ---------- Team builder ---------- */
 
 const TEAM_KEY = "pokeExplorerTeam";
