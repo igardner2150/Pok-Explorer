@@ -200,11 +200,11 @@ async function renderDexTab() {
     <div class="progress-pair" id="dex-progress"></div>
     <div class="dex-tools">
       <label class="visually-hidden" for="dex-q">Search</label>
-      <input id="dex-q" type="search" placeholder="Search name or #" value="${esc(dexFilter.q)}" autocomplete="off">
+      <input id="dex-q" type="search" placeholder="Search name or #" autocomplete="off">
       <label class="visually-hidden" for="dex-gen">Generation</label>
       <select id="dex-gen">
         <option value="all">All generations</option>
-        ${GEN_NAMES.map((n, i) => `<option value="${i + 1}" ${String(i + 1) === dexFilter.gen ? "selected" : ""}>Gen ${i + 1} · ${n}</option>`).join("")}
+        ${GEN_NAMES.map((n, i) => `<option value="${i + 1}">Gen ${i + 1} · ${n}</option>`).join("")}
       </select>
       <label class="visually-hidden" for="dex-show">Show</label>
       <select id="dex-show">
@@ -215,13 +215,13 @@ async function renderDexTab() {
         <option value="shiny">Shiny</option>
       </select>
       <span class="count" id="dex-shown"></span>
+      ${clearFiltersBtn()}
       <div class="view-toggle" role="group" aria-label="View">
         <button type="button" data-view="list" class="${dexFilter.view === "list" ? "active" : ""}">List</button>
         <button type="button" data-view="boxes" class="${dexFilter.view === "boxes" ? "active" : ""}">Boxes</button>
       </div>
     </div>
     <div class="dex-list" id="dex-list"></div>`;
-  document.getElementById("dex-show").value = dexFilter.show;
 
   const listEl = document.getElementById("dex-list");
 
@@ -291,6 +291,11 @@ async function renderDexTab() {
   document.getElementById("dex-q").addEventListener("input", e => { dexFilter.q = e.target.value; draw(); });
   document.getElementById("dex-gen").addEventListener("change", e => { dexFilter.gen = e.target.value; draw(); });
   document.getElementById("dex-show").addEventListener("change", e => { dexFilter.show = e.target.value; draw(); });
+  // Filters stay set until cleared: restore them into the controls, then copy them back into dexFilter.
+  const syncFilter = () => Object.assign(dexFilter, {
+    q: document.getElementById("dex-q").value, gen: document.getElementById("dex-gen").value, show: document.getElementById("dex-show").value });
+  keepFilters("tracker-dex", ["dex-q", "dex-gen", "dex-show"], { clearBtn: document.getElementById("clear-filters"), onClear: () => { syncFilter(); draw(); } });
+  syncFilter();
   draw();
 }
 
