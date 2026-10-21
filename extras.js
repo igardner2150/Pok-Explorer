@@ -157,9 +157,11 @@ function bestSwaps(members, pool, td, limit = 3) {
   return picked;
 }
 
-// Fills the open slots one at a time, each time adding the candidate that gives the highest score.
+// Fills open slots one at a time, each time adding the candidate that gives the highest score.
+// Stops early if no candidate raises the score (for example when a game has few good picks left).
 function autoComplete(members, pool, td) {
   const team = [...members], added = [];
+  let current = teamSynergy(team, td).score;
   while (team.length < 6) {
     const taken = new Set(team.map(m => m.name));
     let best = null;
@@ -168,9 +170,10 @@ function autoComplete(members, pool, td) {
       const score = teamSynergy([...team, c], td).score;
       if (!best || score > best.score) best = { c, score };
     }
-    if (!best) break;
+    if (!best || best.score <= current) break;
     team.push(best.c);
     added.push(best.c);
+    current = best.score;
   }
   return { added, result: teamSynergy(team, td) };
 }
@@ -229,13 +232,13 @@ function synergyPanel(result, shared) {
       </div>
       <div id="synergy-swaps" class="synergy-swaps">
         <h3>Suggested swaps</h3>
-        <p class="muted">Checking ${SWAP_POOL.length} popular Pokémon against your team…</p>
+        <p class="muted">Checking other Pokémon against your team…</p>
       </div>
     </section>`;
 }
 
 function swapsHtml(swaps, shared) {
-  if (!swaps.length) return `<h3>Suggested swaps</h3><p class="muted">No single change from our list of ${SWAP_POOL.length} popular Pokémon raises your score. Nice team.</p>`;
+  if (!swaps.length) return `<h3>Suggested swaps</h3><p class="muted">No single change from our suggestions raises your score. Nice team.</p>`;
   return `<h3>Suggested swaps</h3>
     <ul class="plain swap-list">${swaps.map((s, i) => `
       <li>
@@ -248,6 +251,101 @@ function swapsHtml(swaps, shared) {
       </li>`).join("")}</ul>`;
 }
 
+/* ---------- Games for the team builder ---------- */
+
+// [id, label, PokéAPI version groups]. A game's Pokémon are the ones in its regional Pokédexes (DLC included).
+const TEAM_GAMES = [
+  ["scarlet-violet", "Scarlet / Violet (with DLC)", ["scarlet-violet", "the-teal-mask", "the-indigo-disk"]],
+  ["legends-arceus", "Legends: Arceus", ["legends-arceus"]],
+  ["bdsp", "Brilliant Diamond / Shining Pearl", ["brilliant-diamond-and-shining-pearl"]],
+  ["sword-shield", "Sword / Shield (with DLC)", ["sword-shield", "the-isle-of-armor", "the-crown-tundra"]],
+  ["lets-go", "Let's Go, Pikachu! / Eevee!", ["lets-go-pikachu-lets-go-eevee"]],
+  ["usum", "Ultra Sun / Ultra Moon", ["ultra-sun-ultra-moon"]],
+  ["sun-moon", "Sun / Moon", ["sun-moon"]],
+  ["oras", "Omega Ruby / Alpha Sapphire", ["omega-ruby-alpha-sapphire"]],
+  ["x-y", "X / Y", ["x-y"]],
+  ["b2w2", "Black 2 / White 2", ["black-2-white-2"]],
+  ["black-white", "Black / White", ["black-white"]],
+  ["hgss", "HeartGold / SoulSilver", ["heartgold-soulsilver"]],
+  ["platinum", "Platinum", ["platinum"]],
+  ["diamond-pearl", "Diamond / Pearl", ["diamond-pearl"]],
+  ["emerald", "Emerald", ["emerald"]],
+  ["frlg", "FireRed / LeafGreen", ["firered-leafgreen"]],
+  ["ruby-sapphire", "Ruby / Sapphire", ["ruby-sapphire"]],
+  ["crystal", "Crystal", ["crystal"]],
+  ["gold-silver", "Gold / Silver", ["gold-silver"]],
+  ["yellow", "Yellow", ["yellow"]],
+  ["red-blue", "Red / Blue", ["red-blue"]]
+];
+const teamGameLabel = id => (TEAM_GAMES.find(g => g[0] === id) || [])[1] || "";
+
+const TEAM_GAME_KEY = "pokeExplorerTeamGame";
+function loadTeamGame() {
+  try { const g = localStorage.getItem(TEAM_GAME_KEY) || ""; return TEAM_GAMES.some(x => x[0] === g) ? g : ""; } catch { return ""; }
+}
+function saveTeamGame(id) { try { if (id) localStorage.setItem(TEAM_GAME_KEY, id); else localStorage.removeItem(TEAM_GAME_KEY); } catch {} }
+
+// Species names in a game's Pokédexes, or null for "any game" (or if PokéAPI has no Pokédex for it).
+const gameDexCache = {};
+function gameSpecies(id) {
+  const game = TEAM_GAMES.find(g => g[0] === id);
+  if (!game) return Promise.resolve(null);
+  gameDexCache[id] ||= Promise.all(game[2].map(vg => get(`/version-group/${vg}`).catch(() => null)))
+    .then(groups => Promise.all(groups.filter(Boolean).flatMap(g => g.pokedexes.map(d => get(d.url).catch(() => null)))))
+    .then(dexes => {
+      const names = new Set();
+      dexes.filter(Boolean).forEach(d => d.pokemon_entries.forEach(e => names.add(e.pokemon_species.name)));
+      return names.size ? names : null;
+    });
+  return gameDexCache[id];
+}
+
+// Is this Pokémon id (a species, or a form like "ninetales-alola") allowed by the game's species list?
+function allowedInGame(slug, species) {
+  if (!species) return true;
+  if (species.has(slug)) return true;
+  const parts = slug.split("-");
+  for (let i = parts.length - 1; i > 0; i--) if (species.has(parts.slice(0, i).join("-"))) return true;
+  return false;
+}
+
+// Fully evolved, battle-ready Pokémon from every generation. With a game picked, swap and
+// auto-complete suggestions come from the ones in that game's Pokédex.
+const GAME_POOL = `venusaur charizard blastoise pidgeot raichu sandslash nidoqueen nidoking clefable ninetales arcanine poliwrath
+  alakazam machamp victreebel tentacruel golem slowbro magneton dewgong cloyster gengar exeggutor marowak hitmonlee hitmonchan
+  rhydon chansey kangaskhan starmie scyther jynx pinsir tauros gyarados lapras vaporeon jolteon flareon omastar kabutops
+  aerodactyl snorlax dragonite meganium typhlosion feraligatr ampharos azumarill politoed espeon umbreon slowking forretress
+  steelix scizor heracross ursaring skarmory houndoom kingdra donphan porygon2 blissey crobat lanturn quagsire tyranitar
+  sceptile blaziken swampert ludicolo shiftry pelipper gardevoir breloom hariyama aggron medicham manectric sharpedo camerupt
+  torkoal flygon altaria zangoose seviper whiscash crawdaunt claydol cradily armaldo milotic banette absol glalie walrein
+  salamence metagross torterra infernape empoleon staraptor luxray roserade floatzel gastrodon drifblim mismagius honchkrow
+  bronzong spiritomb garchomp lucario hippowdon drapion toxicroak abomasnow weavile magnezone rhyperior tangrowth electivire
+  magmortar togekiss yanmega leafeon glaceon gliscor mamoswine porygon-z gallade dusknoir froslass rotom serperior emboar
+  samurott excadrill conkeldurr seismitoad scolipede whimsicott lilligant krookodile darmanitan crustle scrafty cofagrigus
+  zoroark reuniclus vanilluxe escavalier amoonguss jellicent galvantula ferrothorn eelektross chandelure haxorus beartic
+  mienshao golurk bisharp braviary mandibuzz hydreigon volcarona chesnaught delphox greninja talonflame pyroar florges
+  pangoro aegislash-shield malamar barbaracle dragalge clawitzer tyrantrum aurorus sylveon hawlucha goodra klefki trevenant
+  avalugg noivern decidueye incineroar primarina toucannon vikavolt ribombee lycanroc-midday toxapex mudsdale araquanid
+  lurantis salazzle bewear tsareena golisopod palossand mimikyu-disguised drampa kommo-o rillaboom cinderace inteleon
+  corviknight orbeetle eldegoss drednaw boltund coalossal flapple appletun sandaconda barraskewda toxtricity-amped
+  centiskorch grapploct polteageist hatterene grimmsnarl obstagoon sirfetchd runerigus frosmoth copperajah duraludon
+  dragapult meowscarada skeledirge quaquaval lokix pawmot garganacl armarouge ceruledge bellibolt kilowattrel mabosstiff
+  brambleghast toedscruel scovillain espathra tinkaton palafin-zero revavroom glimmora houndstone cetitan dondozo
+  annihilape clodsire farigiraf kingambit baxcalibur gholdengo wyrdeer kleavor ursaluna sneasler overqwil sinistcha
+  archaludon hydrapple`.split(/\s+/).filter(Boolean);
+// PokéAPI Pokémon id → species name ("aegislash-shield" → "aegislash").
+const poolSpecies = slug => slug.replace(/-(shield|midday|disguised|amped|zero)$/, "");
+
+// The candidates for swaps and auto-complete: the 36 popular picks for any game, or the game's own Pokémon.
+async function swapPoolFor(species) {
+  const names = species ? GAME_POOL.filter(n => species.has(poolSpecies(n))) : SWAP_POOL;
+  const mons = [];
+  for (let i = 0; i < names.length; i += 25) {   // in batches, to go easy on PokéAPI
+    mons.push(...await Promise.all(names.slice(i, i + 25).map(n => get(`/pokemon/${n}`).catch(() => null))));
+  }
+  return mons.filter(Boolean).map(mon => ({ name: mon.name, label: pokeName(mon.name), types: mon.types.map(t => t.type.name), stats: baseStats(mon), id: mon.id }));
+}
+
 /* ---------- Team builder ---------- */
 
 const TEAM_KEY = "pokeExplorerTeam";
@@ -258,11 +356,13 @@ function loadTeam() {
 function saveTeam(team) { try { localStorage.setItem(TEAM_KEY, JSON.stringify(team)); } catch {} }
 
 // A shared team arrives as #team/garchomp,rotom-wash,… and is shown without touching the viewer's own saved team.
-async function renderTeam(shared) {
+async function renderTeam(shared, sharedGame) {
   setCrumbs([{ label: "Battle", href: "#gimmicks" }, { label: shared ? "Shared team" : "Team builder" }]);
   const sharedList = shared ? shared.split(",").map(cleanQuery).filter(Boolean).slice(0, 6) : null;
   const team = sharedList ? [...sharedList, "", "", "", "", "", ""].slice(0, 6) : loadTeam();
   const filledNames = team.filter(Boolean);
+  const game = sharedList ? (TEAM_GAMES.some(g => g[0] === sharedGame) ? sharedGame : "") : loadTeamGame();
+  const gameLabel = teamGameLabel(game);
   view.innerHTML = `
     <div class="page-head">
       <div>
@@ -278,6 +378,16 @@ async function renderTeam(shared) {
       </div>
     </div>
     ${sharedList ? "" : hintBox("team")}
+    ${sharedList
+      ? (game ? `<p class="team-game-note">Built for <strong>${esc(gameLabel)}</strong></p>` : "")
+      : `<div class="team-game">
+          <label for="team-game">Building for</label>
+          <select id="team-game">
+            <option value="">Any game</option>
+            ${TEAM_GAMES.map(([id, label]) => `<option value="${id}" ${id === game ? "selected" : ""}>${esc(label)}</option>`).join("")}
+          </select>
+          <span class="muted small">${game ? "Only Pokémon in this game's Pokédex can be added or suggested." : "Pick a game to only use Pokémon from it."}</span>
+        </div>`}
     <div class="share-box" id="share-box" hidden>
       <label for="share-link">Link to this team</label>
       <div class="share-row"><input id="share-link" type="text" readonly><button type="button" class="btn" id="share-copy">Copy</button></div>
@@ -290,7 +400,7 @@ async function renderTeam(shared) {
   if (saveBtn) saveBtn.addEventListener("click", () => { saveTeam(team); location.hash = "team"; });
   const shareBtn = document.getElementById("team-share");
   if (shareBtn) shareBtn.addEventListener("click", () => {
-    const link = `${location.origin}${location.pathname}#team/${filledNames.join(",")}`;
+    const link = `${location.origin}${location.pathname}#team/${filledNames.join(",")}${game ? `/${game}` : ""}`;
     const box = document.getElementById("share-box"), input = document.getElementById("share-link");
     box.hidden = false;
     input.value = link;
@@ -304,11 +414,16 @@ async function renderTeam(shared) {
     catch { input.select(); document.getElementById("share-note").textContent = "Press Ctrl+C (or ⌘C) to copy the selected link."; }
   });
 
-  const td = await allTypeData();
+  const gameSelect = document.getElementById("team-game");
+  if (gameSelect) gameSelect.addEventListener("change", () => { saveTeamGame(gameSelect.value); renderTeam(); });
+
+  const [td, allowed] = await Promise.all([allTypeData(), gameSpecies(game)]);
   const members = await Promise.all(team.map(async name => {
     if (!name) return null;
-    try { const { species, mon } = await loadSpeciesAndMon(name); return { name, species, mon, types: mon.types.map(t => t.type.name) }; }
-    catch { return { name, error: true }; }
+    try {
+      const { species, mon } = await loadSpeciesAndMon(name);
+      return { name, species, mon, types: mon.types.map(t => t.type.name), notInGame: !!allowed && !allowed.has(species.name) };
+    } catch { return { name, error: true }; }
   }));
 
   const slotsEl = document.getElementById("team-slots");
@@ -320,6 +435,7 @@ async function renderTeam(shared) {
         <label class="visually-hidden" for="slot-${i}">Pokémon for slot ${i + 1}</label>
         <input id="slot-${i}" type="search" list="name-suggestions" placeholder="Add a Pokémon" autocomplete="off">
         <button type="submit">Add</button>
+        <p class="slot-error" role="alert" hidden></p>
       </form>`;
     if (m.error) return `
       <div class="team-slot" data-slot="${i}">
@@ -333,18 +449,34 @@ async function renderTeam(shared) {
         <img src="${artOf(m.mon)}" alt="">
         <a href="#pokemon/${m.mon.name}"><strong>${esc(monLabel(m.species, m.mon))}</strong></a>
         <div class="types">${m.types.map(t => typeBadge(t)).join("")}</div>
+        ${m.notInGame ? `<p class="slot-warn">Not in ${esc(gameLabel)}</p>` : ""}
         ${sharedList ? "" : `<button type="button" class="remove" data-remove="${i}">Remove</button>`}
       </div>`;
   }).join("");
 
-  slotsEl.querySelectorAll("form.team-slot").forEach(form => form.addEventListener("submit", e => {
-    e.preventDefault();
-    const v = cleanQuery(form.querySelector("input").value);
-    if (!v) return;
-    team[Number(form.dataset.slot)] = v;
-    saveTeam(team);
-    renderTeam();
-  }));
+  slotsEl.querySelectorAll("form.team-slot").forEach(form => {
+    const input = form.querySelector("input"), error = form.querySelector(".slot-error");
+    // The suggestion list only offers Pokémon from the chosen game.
+    if (allowed) input.searchFilter = r => allowedInGame(r.slug, allowed);
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const v = cleanQuery(input.value);
+      if (!v) return;
+      if (allowed) {
+        let species = null;
+        try { species = (await loadSpeciesAndMon(v)).species; } catch {}
+        if (species && !allowed.has(species.name)) {
+          error.textContent = `${pokeName(species.name)} isn't in ${gameLabel}.`;
+          error.hidden = false;
+          return;
+        }
+      }
+      team[Number(form.dataset.slot)] = v;
+      saveTeam(team);
+      renderTeam();
+    });
+    input.addEventListener("input", () => { error.hidden = true; });
+  });
   slotsEl.querySelectorAll("[data-remove]").forEach(btn => btn.addEventListener("click", () => {
     team[Number(btn.dataset.remove)] = "";
     saveTeam(team);
@@ -404,19 +536,17 @@ async function renderTeam(shared) {
     </div>`;
 
   // Swap suggestions need the candidates' stats and types; they load after the grade is on screen.
-  const pool = (await Promise.all(SWAP_POOL.map(s => get(`/pokemon/${s}`).catch(() => null))))
-    .filter(Boolean)
-    .map(mon => ({ name: mon.name, label: pokeName(mon.name), types: mon.types.map(t => t.type.name), stats: baseStats(mon), id: mon.id }));
+  const pool = await swapPoolFor(allowed);
   const box = document.getElementById("synergy-swaps");
   if (!box) return;   // the visitor already left the page
   const swaps = bestSwaps(synergyTeam, pool, td);
   const open = 6 - synergyTeam.length;
   const fill = !sharedList && open > 0 && pool.length ? autoComplete(synergyTeam, pool, td) : null;
-  box.innerHTML = (fill && fill.added.length ? `
+  box.innerHTML = (fill && fill.added.length && fill.result.score > synergy.score ? `
     <div class="autofill">
       <div>
         <h3>Auto-complete my team</h3>
-        <p>Fill the ${open} empty slot${open > 1 ? "s" : ""} with ${fill.added.map(c => esc(c.label)).join(", ")}: score ${synergy.score} → ${fill.result.score} (grade ${fill.result.grade}).</p>
+        <p>${fill.added.length === open ? `Fill the ${open} empty slot${open > 1 ? "s" : ""} with` : "Add"} ${fill.added.map(c => esc(c.label)).join(", ")}: score ${synergy.score} → ${fill.result.score} (grade ${fill.result.grade}).</p>
       </div>
       <button type="button" class="btn" id="autofill-btn">Auto-complete</button>
     </div>` : "") + swapsHtml(swaps, !!sharedList);
@@ -686,10 +816,11 @@ async function renderTypeChart(body) {
 }
 
 /* Advanced search */
-let searchState = { type1: "", type2: "", gen: "", stat: "", min: "", sort: "id", forms: false };
+const SEARCH_DEFAULTS = { type1: "", type2: "", gen: "", stat: "", min: "", sort: "id", forms: false };
+let searchState = { ...SEARCH_DEFAULTS };
 
 async function renderSearch(body) {
-  const st = searchState;
+  const st = SEARCH_DEFAULTS;   // controls start at their defaults; keepFilters restores saved choices below
   const opt = (v, label, cur) => `<option value="${v}" ${v === cur ? "selected" : ""}>${label}</option>`;
   body.innerHTML = `
     <form class="search-form" id="adv-form">
@@ -701,6 +832,7 @@ async function renderSearch(body) {
       <div><label for="s-sort">Sort by</label><select id="s-sort">${opt("id", "Pokédex number", st.sort)}${Object.entries(STAT_LABEL).map(([k, l]) => opt(k, l, st.sort)).join("")}${opt("total", "Total", st.sort)}</select></div>
       <label class="check"><input type="checkbox" id="s-forms" ${st.forms ? "checked" : ""}> Include forms (regional, Mega, etc.)</label>
       <button type="submit">Search</button>
+      ${clearFiltersBtn()}
     </form>
     <div id="adv-out"><p class="muted">Choose filters and press Search. Example: Fire type, minimum Speed 100.</p></div>`;
 
@@ -714,6 +846,16 @@ async function renderSearch(body) {
     });
     await runSearch(document.getElementById("adv-out"));
   });
+  const form = document.getElementById("adv-form");
+  const ids = ["s-type1", "s-type2", "s-gen", "s-stat", "s-min", "s-sort", "s-forms"];
+  const active = keepFilters("adv-search", ids, {
+    clearBtn: document.getElementById("clear-filters"),
+    onClear: () => {
+      searchState = { ...SEARCH_DEFAULTS };
+      document.getElementById("adv-out").innerHTML = `<p class="muted">Choose filters and press Search. Example: Fire type, minimum Speed 100.</p>`;
+    }
+  });
+  if (active) form.requestSubmit();   // saved filters: show the results again right away
 }
 
 async function runSearch(out) {
@@ -815,9 +957,17 @@ async function renderQuiz(body) {
     }
     const choices = [pick, ...others].sort(() => Math.random() - 0.5);
     answer = pick;
+    // Hide the picture until the next Pokémon has loaded. Otherwise the reveal fades back to a silhouette
+    // while the new image arrives, and the new Pokémon shows in color for a moment.
     const img = document.getElementById("q-img");
+    const url = OFFICIAL_ART(pick.id);
+    img.classList.add("loading");
     img.classList.remove("revealed");
-    img.src = OFFICIAL_ART(pick.id);
+    const show = () => img.classList.remove("loading");
+    img.onload = show;
+    img.onerror = show;
+    if (img.src === url && img.complete) show();   // same picture as last time: no load event will fire
+    else img.src = url;
     document.getElementById("q-result").textContent = "";
     document.getElementById("q-next").hidden = true;
     const opts = document.getElementById("q-options");
