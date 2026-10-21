@@ -78,6 +78,7 @@ test("navigation highlights the right section", () => {
   assert.deepEqual(plain(site.navFor("tools", "items")), ["tools", "items"]);
   assert.deepEqual(plain(site.navFor("tracker")), ["tracker", "games"]);
   assert.deepEqual(plain(site.navFor("forms")), ["pokedex", "forms"]);
+  assert.deepEqual(plain(site.navFor("games", "scarlet-violet")), ["pokedex", "games"]);
   assert.deepEqual(plain(site.navFor("")), ["pokedex", "regions"]);
 });
 
