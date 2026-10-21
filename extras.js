@@ -285,19 +285,98 @@ function loadTeamGame() {
 }
 function saveTeamGame(id) { try { if (id) localStorage.setItem(TEAM_GAME_KEY, id); else localStorage.removeItem(TEAM_GAME_KEY); } catch {} }
 
-// Species names in a game's Pokédexes, or null for "any game" (or if PokéAPI has no Pokédex for it).
-const gameDexCache = {};
-function gameSpecies(id) {
+// Pokémon a game has outside its regional Pokédex. PokéAPI has little encounter data for the Switch games,
+// so their post-game legendaries are listed here (Scarlet/Violet: Snacksworth in The Indigo Disk;
+// Sword/Shield: Dynamax Adventures in The Crown Tundra; BDSP: Ramanas Park and other post-game encounters).
+const GAME_EXTRAS = {
+  "scarlet-violet": `articuno zapdos moltres raikou entei suicune lugia ho-oh latias latios kyogre groudon rayquaza
+    cobalion terrakion virizion reshiram zekrom kyurem solgaleo lunala necrozma glastrier spectrier kubfu`,
+  "sword-shield": `articuno zapdos moltres mewtwo raikou entei suicune lugia ho-oh latias latios kyogre groudon rayquaza
+    uxie mesprit azelf dialga palkia heatran giratina cresselia tornadus thundurus reshiram zekrom landorus kyurem xerneas
+    yveltal zygarde tapu-koko tapu-lele tapu-bulu tapu-fini solgaleo lunala nihilego buzzwole pheromosa xurkitree
+    celesteela kartana guzzlord necrozma stakataka blacephalon`,
+  "bdsp": `regirock regice registeel articuno zapdos moltres raikou entei suicune lugia ho-oh latias latios kyogre groudon
+    rayquaza mewtwo giratina heatran regigigas cresselia`
+};
+const extrasFor = id => (GAME_EXTRAS[id] || "").split(/\s+/).filter(Boolean);
+// Games where PokéAPI's encounter data (every place a Pokémon can be caught, by version) fills in the rest.
+const ENCOUNTER_GAMES = new Set(["red-blue", "yellow", "gold-silver", "crystal", "ruby-sapphire", "emerald", "frlg",
+  "diamond-pearl", "platinum", "hgss", "black-white", "b2w2", "x-y", "oras", "sun-moon", "usum"]);
+
+// Species name for a Pokémon from an encounter list ("rattata-alola", id 10091 → "rattata").
+function speciesOfPokemon(name, id, speciesById, speciesSlugs) {
+  if (id <= 10000 && speciesById[id]) return speciesById[id];
+  if (speciesSlugs.has(name)) return name;
+  const parts = name.split("-");
+  for (let i = parts.length - 1; i > 0; i--) { const base = parts.slice(0, i).join("-"); if (speciesSlugs.has(base)) return base; }
+  return null;
+}
+
+// Every species found in these location areas in any of the given versions.
+function encounterSpecies(areas, versions, speciesById, speciesSlugs) {
+  const found = new Set();
+  areas.forEach(a => a && a.pokemon_encounters.forEach(pe => {
+    if (!pe.version_details.some(v => versions.has(v.version.name))) return;
+    const sp = speciesOfPokemon(pe.pokemon.name, idFromUrl(pe.pokemon.url), speciesById, speciesSlugs);
+    if (sp) found.add(sp);
+  }));
+  return found;
+}
+
+// Runs request functions a batch at a time, reporting progress.
+async function inBatches(tasks, size, onProgress) {
+  const out = [];
+  for (let i = 0; i < tasks.length; i += size) {
+    out.push(...await Promise.all(tasks.slice(i, i + size).map(t => t())));
+    if (onProgress) onProgress(Math.min(i + size, tasks.length), tasks.length);
+  }
+  return out;
+}
+
+// Everything available in a game: its regional Pokédex sections, plus "extra" Pokémon from encounter data
+// and the post-game lists above. The first visit to a game's encounter data takes a few hundred requests;
+// after that every response comes from the cache.
+const gameAvailCache = {};
+const gameDexOnly = {};
+function gameRegionalDex(id) {
   const game = TEAM_GAMES.find(g => g[0] === id);
   if (!game) return Promise.resolve(null);
-  gameDexCache[id] ||= Promise.all(game[2].map(vg => get(`/version-group/${vg}`).catch(() => null)))
-    .then(groups => Promise.all(groups.filter(Boolean).flatMap(g => g.pokedexes.map(d => get(d.url).catch(() => null)))))
-    .then(dexes => {
-      const names = new Set();
-      dexes.filter(Boolean).forEach(d => d.pokemon_entries.forEach(e => names.add(e.pokemon_species.name)));
-      return names.size ? names : null;
-    });
-  return gameDexCache[id];
+  gameDexOnly[id] ||= (async () => {
+    const vgs = (await Promise.all(game[2].map(vg => get(`/version-group/${vg}`).catch(() => null)))).filter(Boolean);
+    const dexes = await Promise.all(vgs.flatMap(v => v.pokedexes.map(d => get(d.url).catch(() => null))));
+    return { vgs, ...gameDexSections(dexes) };
+  })();
+  return gameDexOnly[id];
+}
+function gameAvailability(id, onProgress) {
+  if (!TEAM_GAMES.some(g => g[0] === id)) return Promise.resolve(null);
+  gameAvailCache[id] ||= (async () => {
+    const { vgs, sections } = await gameRegionalDex(id);
+    const inDex = new Set(sections.flatMap(s => s.mons.map(m => m.name)));
+    const found = new Set(extrasFor(id));
+    if (ENCOUNTER_GAMES.has(id)) {
+      const versions = new Set(vgs.flatMap(v => v.versions.map(x => x.name)));
+      const regions = (await Promise.all([...new Set(vgs.flatMap(v => v.regions.map(r => r.url)))].map(u => get(u).catch(() => null)))).filter(Boolean);
+      const locations = await inBatches(regions.flatMap(r => r.locations).map(l => () => get(l.url).catch(() => null)), 25,
+        (n, t) => onProgress && onProgress(`Checking locations… ${n} of ${t}`));
+      const areas = await inBatches(locations.filter(Boolean).flatMap(l => l.areas).map(a => () => get(a.url).catch(() => null)), 25,
+        (n, t) => onProgress && onProgress(`Checking where Pokémon appear… ${n} of ${t}`));
+      encounterSpecies(areas, versions, SPECIES_BY_ID, SPECIES_SLUGS).forEach(n => found.add(n));
+    }
+    const idOf = new Map(Object.entries(SPECIES_BY_ID).map(([i, n]) => [n, Number(i)]));
+    const extra = [...found].filter(n => !inDex.has(n) && idOf.has(n)).map(n => ({ name: n, id: idOf.get(n), num: idOf.get(n) }))
+      .sort((a, b) => a.id - b.id);
+    return { sections, extra, total: inDex.size + extra.length };
+  })();
+  return gameAvailCache[id];
+}
+
+// Species names available in a game (Pokédex plus extras), or null for "any game".
+async function gameSpecies(id) {
+  const avail = await gameAvailability(id);
+  if (!avail) return null;
+  const names = new Set([...avail.sections.flatMap(s => s.mons.map(m => m.name)), ...avail.extra.map(m => m.name)]);
+  return names.size ? names : null;
 }
 
 // Is this Pokémon id (a species, or a form like "ninetales-alola") allowed by the game's species list?
@@ -374,28 +453,37 @@ async function renderGames(gameId) {
     return;
   }
 
-  const [id, label, groups] = game;
+  const [id, label] = game;
   setCrumbs([{ label: "Pokédex", href: "#" }, { label: "Games", href: "#games" }, { label }]);
   view.innerHTML = `<h1>${esc(label)}</h1>${loadingBlock("Loading this game's Pokédex…")}`;
-  const vgs = (await Promise.all(groups.map(vg => get(`/version-group/${vg}`).catch(() => null)))).filter(Boolean);
-  const dexes = await Promise.all(vgs.flatMap(v => v.pokedexes.map(d => get(d.url).catch(() => null))));
-  const { sections, total } = gameDexSections(dexes);
-  if (!sections.length) {
+  const regional = await gameRegionalDex(id);
+  if (!regional.sections.length) {
     view.innerHTML = `<h1>${esc(label)}</h1><p class="lede">PokéAPI doesn't have a Pokédex for this game yet.</p><p><a class="text-link" href="#games">All games</a></p>`;
     return;
   }
+  // The regional Pokédexes show right away; "Also catchable" (legendaries, post-game and other Pokémon
+  // outside the regional Pokédex) fills in once the encounter data has loaded.
+  const hasExtra = ENCOUNTER_GAMES.has(id) || extrasFor(id).length > 0;
+  const sections = [...regional.sections];
+  const extraSection = { key: "extra", label: "Also catchable", mons: [], loading: "Checking post-game and legendary Pokémon…" };
+  if (hasExtra) sections.push(extraSection);
+  const dexNames = regional.sections.map(s => s.label);
+  const dexText = `the ${dexNames.join(", ").replace(/, ([^,]*)$/, " and $1")} Pokédex${dexNames.length > 1 ? "es" : ""}`;
+  const lede = (total, extra) => extra
+    ? `${total} Pokémon you can catch: ${dexText}, plus ${extra} more such as legendaries and post-game Pokémon.`
+    : `${total} Pokémon in ${dexText}.`;
 
   view.innerHTML = `
     <div class="page-head game-head">
       <div>
         <h1>${esc(label)}</h1>
-        <p class="lede">${total} Pokémon in this game's Pokédex${sections.length > 1 ? `, across ${sections.length} Pokédexes` : ""}.</p>
+        <p class="lede" id="g-lede">${lede(regional.total, 0)}</p>
       </div>
       <div class="page-actions"><button type="button" class="btn ghost" id="game-team">Build a team for this game</button></div>
     </div>
     ${sections.length > 1 ? `
       <div class="sub-tabs" role="tablist" aria-label="Pokédex">
-        ${sections.map((s, i) => `<button type="button" role="tab" class="sub-tab ${i ? "" : "active"}" aria-selected="${!i}" data-dex="${i}">${esc(s.label)} (${s.mons.length})</button>`).join("")}
+        ${sections.map((s, i) => `<button type="button" role="tab" class="sub-tab ${i ? "" : "active"}" aria-selected="${!i}" data-dex="${i}">${esc(s.label)} <span data-dex-count="${i}">${s.loading ? "" : `(${s.mons.length})`}</span></button>`).join("")}
       </div>` : ""}
     <div class="list-tools region-tools">
       <div class="field grow"><label for="g-filter">Search</label>
@@ -417,7 +505,13 @@ async function renderGames(gameId) {
     const run = ++drawId;
     const q = normalizeText($("g-filter").value.replace(/^#?0*/, ""));
     const type = $("g-type").value, show = $("g-show").value;
-    let list = sections[current].mons;
+    const section = sections[current];
+    if (section.loading) {
+      $("g-count").textContent = "";
+      $("g-grid").innerHTML = `<p class="status" role="status">${esc(section.loading)}</p>`;
+      return;
+    }
+    let list = section.mons;
     if (type) {
       if (!typeSets.has(type)) typeSets.set(type, new Set((await get(`/type/${type}`)).pokemon.map(p => idFromUrl(p.pokemon.url))));
       if (run !== drawId) return;   // a newer draw started while this one waited
@@ -432,7 +526,7 @@ async function renderGames(gameId) {
     $("g-grid").innerHTML = list.map(m => `
       <a class="mon-card" href="#pokemon/${m.name}">
         ${spriteImg(m.id)}
-        <span class="num">#${String(m.num).padStart(3, "0")}</span>
+        <span class="num">${section.key === "extra" ? pad(m.id) : `#${String(m.num).padStart(3, "0")}`}</span>
         <span class="name">${esc(pokeName(m.name))}</span>
         ${trackBadges(m.id)}
       </a>`).join("") || `<p class="muted empty-note">No Pokémon match these filters.</p>`;
@@ -446,6 +540,23 @@ async function renderGames(gameId) {
     draw();
   }));
   keepFilters(`game-${id}`, ["g-filter", "g-type", "g-show"], { clearBtn: $("clear-filters"), onClear: draw });
+  draw();
+
+  if (!hasExtra) return;
+  const extraIndex = sections.length - 1;
+  const avail = await gameAvailability(id, msg => {
+    extraSection.loading = msg;
+    if (current === extraIndex && document.getElementById("g-grid")) draw();
+  }).catch(() => null);
+  if (!document.getElementById("g-grid")) return;   // the visitor already left the page
+  extraSection.loading = null;
+  extraSection.mons = avail ? avail.extra : [];
+  const countEl = view.querySelector(`[data-dex-count="${extraIndex}"]`);
+  if (!extraSection.mons.length) {
+    view.querySelector(`[data-dex="${extraIndex}"]`)?.remove();
+    if (current === extraIndex) current = 0;
+  } else if (countEl) countEl.textContent = `(${extraSection.mons.length})`;
+  if (avail) document.getElementById("g-lede").textContent = lede(avail.total, avail.extra.length);
   draw();
 }
 
@@ -489,7 +600,7 @@ async function renderTeam(shared, sharedGame) {
             <option value="">Any game</option>
             ${TEAM_GAMES.map(([id, label]) => `<option value="${id}" ${id === game ? "selected" : ""}>${esc(label)}</option>`).join("")}
           </select>
-          <span class="muted small">${game ? "Only Pokémon in this game's Pokédex can be added or suggested." : "Pick a game to only use Pokémon from it."}</span>
+          <span class="muted small" id="team-game-note">${game ? "Loading this game's Pokémon…" : "Pick a game to only use Pokémon from it."}</span>
         </div>`}
     <div class="share-box" id="share-box" hidden>
       <label for="share-link">Link to this team</label>
@@ -521,6 +632,8 @@ async function renderTeam(shared, sharedGame) {
   if (gameSelect) gameSelect.addEventListener("change", () => { saveTeamGame(gameSelect.value); renderTeam(); });
 
   const [td, allowed] = await Promise.all([allTypeData(), gameSpecies(game)]);
+  const gameNote = document.getElementById("team-game-note");
+  if (gameNote && game) gameNote.textContent = "Only Pokémon you can catch in this game can be added or suggested.";
   const members = await Promise.all(team.map(async name => {
     if (!name) return null;
     try {
