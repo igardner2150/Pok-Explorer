@@ -1,0 +1,36 @@
+// Team builder games, and filters that stay set until cleared.
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const { plain, loadSite } = require("./load-site");
+const { site, localStorage } = loadSite();
+
+test("a game's species list allows its Pokémon and their forms, and blocks the rest", () => {
+  const paldea = new Set(["tauros", "wooper", "garchomp"]);
+  assert.equal(site.allowedInGame("garchomp", paldea), true);
+  assert.equal(site.allowedInGame("tauros-paldea-combat-breed", paldea), true);   // a form of an allowed species
+  assert.equal(site.allowedInGame("charizard", paldea), false);
+  assert.equal(site.allowedInGame("charizard", null), true);                       // "Any game"
+});
+
+test("the game swap pool has no repeats and maps form ids to species", () => {
+  assert.equal(new Set(site.GAME_POOL).size, site.GAME_POOL.length);
+  assert.equal(site.poolSpecies("aegislash-shield"), "aegislash");
+  assert.equal(site.poolSpecies("mimikyu-disguised"), "mimikyu");
+  assert.equal(site.poolSpecies("kommo-o"), "kommo-o");
+  assert.equal(site.poolSpecies("porygon-z"), "porygon-z");
+});
+
+test("every team game has a unique id and at least one version group", () => {
+  const ids = site.TEAM_GAMES.map(g => g[0]);
+  assert.equal(new Set(ids).size, ids.length);
+  site.TEAM_GAMES.forEach(([, label, groups]) => { assert.ok(label); assert.ok(groups.length > 0); });
+});
+
+test("filters are saved while set and forgotten once back to their defaults", () => {
+  const defaults = { "f-type": "", "f-sort": "number" };
+  assert.equal(site.storeFilters("region-kanto", { "f-type": "fire", "f-sort": "number" }, defaults), true);
+  assert.deepEqual(plain(site.savedFilters("region-kanto")), { "f-type": "fire", "f-sort": "number" });
+  assert.equal(site.storeFilters("region-kanto", { ...defaults }, defaults), false);
+  assert.deepEqual(plain(site.savedFilters("region-kanto")), {});
+  assert.equal(JSON.parse(localStorage.getItem("pokeExplorerFilters"))["region-kanto"], undefined);
+});
